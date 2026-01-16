@@ -5,9 +5,10 @@ from api.router import api_router # Importa o router central
 app = FastAPI(title="PrevAI API", version="2.0")
 
 origins = [
-    "http://localhost:5173", # Desenvolvimento local
-    "https://prev-ai.pages.dev", # Seu futuro endereço na Cloudflare (exemplo)
-    "*" # ⚠️ Durante o teste inicial, pode deixar * para aceitar qualquer origem, depois restrinja.
+    "http://localhost:5173",           # Para você continuar trabalhando local
+    "http://localhost:3000",
+    "https://prev-ai.pages.dev",       # 🔒 Seu domínio oficial da Cloudflare
+    "https://sua-url-customizada.com"  # (Se você comprar um domínio depois)
 ]
 
 app.add_middleware(
