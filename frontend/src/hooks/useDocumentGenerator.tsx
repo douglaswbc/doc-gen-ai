@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { toast } from 'react-toastify';
 
 export const useDocumentGenerator = () => {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [generatedContent, setGeneratedContent] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const API_URL = import.meta.env.VITE_API_URL;
@@ -29,6 +29,12 @@ export const useDocumentGenerator = () => {
         setIsGenerating(false);
         return null;
       }
+      // Verifica se existe sessão ativa
+      if (!session?.access_token) {
+        toast.error('Sessão expirada. Faça login novamente.');
+        setIsGenerating(false);
+        return null;
+      }
 
       // 2. Chamada à API Python      
       // Certifique-se que seu backend está rodando em localhost:8000
@@ -36,6 +42,7 @@ export const useDocumentGenerator = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
           agentName,

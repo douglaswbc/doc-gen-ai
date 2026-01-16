@@ -1,5 +1,8 @@
 import asyncio
-from fastapi import APIRouter, HTTPException
+import os
+from fastapi import APIRouter, HTTPException, Header, Depends
+from supabase import create_client, Client
+from typing import Optional
 
 from models.schemas import GenerateRequest, GenerateResponse
 from agents.workflow import app_graph
@@ -8,9 +11,39 @@ from services.calculations import generate_payment_table, get_valor_extenso
 
 router = APIRouter()
 
+# Inicializa o Supabase no Python
+url: str = os.environ.get("SUPABASE_URL")
+key: str = os.environ.get("SUPABASE_KEY")
+supabase: Client = create_client(url, key)
+
+# --- FUNÇÃO DE SEGURANÇA ---
+async def verify_token(authorization: Optional[str] = Header(None)):
+    """Verifica se o usuário enviou um token válido do Supabase"""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Token de autenticação ausente.")
+
+    try:
+        # O formato vem como "Bearer <token>"
+        token = authorization.split(" ")[1]
+
+        # Pergunta ao Supabase quem é esse usuário
+        user = supabase.auth.get_user(token)
+
+        if not user:
+            raise HTTPException(status_code=401, detail="Sessão inválida ou expirada.")
+
+        return user
+    except Exception as e:
+        print(f"❌ Erro de Auth: {e}")
+        raise HTTPException(status_code=401, detail="Acesso negado.")
+
+# --- ROTA PROTEGIDA ---
 @router.post("/generate", response_model=GenerateResponse)
-async def generate_document(request: GenerateRequest):
-    print(f"🚀 [API] Iniciando: {request.clientName}")
+async def generate_document(
+    request: GenerateRequest, 
+    user_auth = Depends(verify_token) # <--- AQUI ESTÁ A MÁGICA
+):
+    print(f"🚀 [API] Usuário Autenticado: {user_auth.user.email}")
 
     try:
         # 1. PARALELISMO: Buscas Externas (Serper)
