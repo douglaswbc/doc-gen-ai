@@ -1,4 +1,62 @@
+# ----------------------
+# SEGURANÇA (Arquivos de Senha)
+# ----------------------
 .env
-node_modules
-dist
+.env.*
+!.env.example
+*.pem
+
+# ----------------------
+# PYTHON (Backend)
+# ----------------------
+# Ambientes Virtuais (Genérico)
+venv/
+env/
+.venv/
+backend/venv/
+
+# Cache e Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribuição e Testes
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ----------------------
+# NODE / REACT (Frontend)
+# ----------------------
+node_modules/
+frontend/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build do Vite/React
+dist/
+build/
+frontend/dist/
+
+# Arquivos de ambiente locais do Vite (que não devem subir)
+.env.local
+.env.development
+.env.test.local
+.env.production
+
+# ----------------------
+# SISTEMA OPERACIONAL
+# ----------------------
 .DS_Store
+Thumbs.db
+Desktop.ini
+
+# ----------------------
+# IDEs / EDITORES
+# ----------------------
+.vscode/
+.idea/
+*.swp
+*.swo
