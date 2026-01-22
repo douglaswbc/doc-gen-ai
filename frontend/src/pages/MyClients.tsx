@@ -18,11 +18,11 @@ interface Client {
 const MyClients: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  
+
   // Hooks
   const { availableModules, loading: navLoading } = useNavigation();
   const { permissions } = useProfile(); // <--- Extraia as permissões aqui
-  
+
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -76,40 +76,40 @@ const MyClients: React.FC = () => {
     navigate(path);
   };
 
-  const filteredClients = clients.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+  const filteredClients = clients.filter(c =>
+    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.cpf?.includes(searchTerm)
   );
 
   return (
     <div className="flex flex-col items-center w-full min-h-screen bg-slate-50 dark:bg-background-dark transition-colors duration-300">
       <div className="w-full max-w-[1280px] px-4 md:px-10 py-8">
-        
+
         {/* Header */}
         <div className="flex flex-wrap justify-between items-center gap-4 mb-8 animate-in slide-in-from-top-4">
           <div>
             <h1 className="text-3xl font-black text-slate-900 dark:text-white">Carteira de Clientes</h1>
             <p className="text-slate-500 dark:text-slate-400">Gerencie seus segurados e acesse os históricos.</p>
           </div>
-          
+
           {/* BOTÃO NOVO CLIENTE: Apenas quem pode gerenciar (Advogado/Assistente/Dono) */}
           {permissions.canManageClients && (
-              <button 
-                onClick={() => setIsModuleModalOpen(true)}
-                className="btn-primary flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-white font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 hover:-translate-y-0.5"
-              >
-                <span className="material-symbols-outlined">person_add</span>
-                Novo Cliente
-              </button>
+            <button
+              onClick={() => setIsModuleModalOpen(true)}
+              className="btn-primary flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-white font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 hover:-translate-y-0.5"
+            >
+              <span className="material-symbols-outlined">person_add</span>
+              Novo Cliente
+            </button>
           )}
         </div>
 
         {/* Barra de Busca */}
         <div className="mb-6 relative">
           <span className="material-symbols-outlined absolute left-4 top-3.5 text-slate-400">search</span>
-          <input 
-            type="text" 
-            placeholder="Buscar por nome ou CPF..." 
+          <input
+            type="text"
+            placeholder="Buscar por nome ou CPF..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full h-12 pl-12 pr-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-card-dark text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/50 outline-none transition-all shadow-sm"
@@ -129,39 +129,39 @@ const MyClients: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in duration-500">
             {filteredClients.map((client) => (
               <div key={client.id} className="group bg-white dark:bg-card-dark p-6 rounded-xl border border-slate-200 dark:border-slate-800 hover:shadow-lg hover:border-primary/50 transition-all relative">
-                
+
                 {/* Status Badge */}
                 <div className="absolute top-4 right-4">
-                      <span className={`size-2.5 rounded-full block ${client.status === 'active' ? 'bg-green-500' : 'bg-slate-300'}`} title={client.status === 'active' ? 'Ativo' : 'Arquivado'}></span>
+                  <span className={`size-2.5 rounded-full block ${client.status === 'active' ? 'bg-green-500' : 'bg-slate-300'}`} title={client.status === 'active' ? 'Ativo' : 'Arquivado'}></span>
                 </div>
 
                 <div className="flex items-start justify-between mb-4">
                   <div className="size-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xl uppercase">
                     {client.name.charAt(0)}
                   </div>
-                  
+
                   <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     {/* Botão Ver (Todos) */}
                     <Link to={`/clients/${client.id}`} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-500 hover:text-primary transition-colors" title="Ver Histórico">
                       <span className="material-symbols-outlined">history_edu</span>
                     </Link>
-                    
+
                     {/* BOTÃO EXCLUIR: Apenas Dono (canDeleteClients) */}
                     {permissions.canDeleteClients && (
-                        <button onClick={() => handleDelete(client.id)} className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded text-slate-500 hover:text-red-500 transition-colors" title="Excluir">
+                      <button onClick={() => handleDelete(client.id)} className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded text-slate-500 hover:text-red-500 transition-colors" title="Excluir">
                         <span className="material-symbols-outlined">delete</span>
-                        </button>
+                      </button>
                     )}
                   </div>
                 </div>
-                
+
                 <h3 className="font-bold text-lg text-slate-900 dark:text-white mb-1 truncate">{client.name}</h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 flex items-center gap-1">
                   <span className="material-symbols-outlined text-xs">badge</span> {client.cpf || 'Sem CPF'}
                 </p>
-                
+
                 <Link to={`/clients/${client.id}`} className="block w-full py-2.5 text-center rounded-lg bg-slate-50 dark:bg-slate-800 text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-primary hover:text-white transition-colors">
-                  Acessar Prontuário
+                  Acessar Formulário
                 </Link>
               </div>
             ))}
@@ -182,34 +182,34 @@ const MyClients: React.FC = () => {
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
-            
+
             <div className="space-y-3 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1">
-              
+
               {navLoading ? (
-                 <div className="text-center p-4"><span className="material-symbols-outlined animate-spin text-primary">progress_activity</span></div>
+                <div className="text-center p-4"><span className="material-symbols-outlined animate-spin text-primary">progress_activity</span></div>
               ) : availableModules.length > 0 ? (
-                 availableModules.map(modName => {
-                    const visual = moduleVisuals[modName] || { icon: 'folder', color: 'text-slate-600', bg: 'bg-slate-100 dark:bg-slate-800', desc: 'Módulo personalizado.' };
-                    
-                    return (
-                        <button 
-                            key={modName}
-                            onClick={() => startNewClient(`/modules/${modName}`)}
-                            className="w-full flex items-center gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-primary hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all group text-left"
-                        >
-                            <div className={`size-10 rounded-full flex items-center justify-center ${visual.bg} ${visual.color}`}>
-                                <span className="material-symbols-outlined">{visual.icon}</span>
-                            </div>
-                            <div className="flex-1">
-                                <h4 className="font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors">{modName}</h4>
-                                <p className="text-sm text-slate-500">{visual.desc}</p>
-                            </div>
-                            <span className="material-symbols-outlined text-slate-300 group-hover:text-primary">arrow_forward</span>
-                        </button>
-                    );
-                 })
+                availableModules.map(modName => {
+                  const visual = moduleVisuals[modName] || { icon: 'folder', color: 'text-slate-600', bg: 'bg-slate-100 dark:bg-slate-800', desc: 'Módulo personalizado.' };
+
+                  return (
+                    <button
+                      key={modName}
+                      onClick={() => startNewClient(`/modules/${modName}`)}
+                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-primary hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all group text-left"
+                    >
+                      <div className={`size-10 rounded-full flex items-center justify-center ${visual.bg} ${visual.color}`}>
+                        <span className="material-symbols-outlined">{visual.icon}</span>
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors">{modName}</h4>
+                        <p className="text-sm text-slate-500">{visual.desc}</p>
+                      </div>
+                      <span className="material-symbols-outlined text-slate-300 group-hover:text-primary">arrow_forward</span>
+                    </button>
+                  );
+                })
               ) : (
-                 <p className="text-center text-slate-500 py-4">Nenhum módulo ativo. Vá ao painel Admin.</p>
+                <p className="text-center text-slate-500 py-4">Nenhum módulo ativo. Vá ao painel Admin.</p>
               )}
 
             </div>
