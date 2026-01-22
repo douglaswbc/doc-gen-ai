@@ -37,7 +37,7 @@ def writer_node(state: AgentState):
     structured_llm = llm.with_structured_output(PeticaoAIOutput)
 
     prompt = ChatPromptTemplate.from_messages([
-        ("system", "Você é um advogado previdenciário sênior. Corrija o português e estruture os dados."),
+           ("system", "Você é um advogado previdenciário sênior. Corrija o português e estruture os dados. Se encontrar erros ortográficos ou de formatação nos campos fornecidos (nomes, endereços, profissões, termos técnicos), retorne uma lista chamada 'correcoes' com objetos contendo 'original' e 'correto', por exemplo: [{{\"original\": \"rual\", \"correto\": \"rural\"}}, {{\"original\": \"douglas\", \"correto\": \"Douglas\"}}]. Preserve também os campos estruturados esperados."),
         ("human", "Ação: {doc_type}\nDados: {input_text}")
     ])
 

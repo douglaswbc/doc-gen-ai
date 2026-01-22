@@ -168,7 +168,7 @@ export const template: AgentTemplate = {
       ${headerHtml}
 
       <p align="center" style="font-weight: bold; text-transform: uppercase; margin-bottom: 20px;">
-        AO JUÍZO FEDERAL DA VARA DO JUIZADO ESPECIAL FEDERAL DA SUBSEÇÃO JUDICIÁRIA DA COMARCA DE ${aiData.end_cidade_uf || 'COMPETENTE'}.
+        AO JUÍZO FEDERAL DA VARA DO JUIZADO ESPECIAL FEDERAL DA COMARCA ${aiData.end_cidade_uf || 'COMPETENTE'}.
       </p>
 
       <div style="text-align: center; font-weight: bold; margin: 20px 0;">
@@ -239,6 +239,12 @@ export const template: AgentTemplate = {
             <td class="bg-gray">Vínculo Urbano:</td>
             <td>${aiData.dados_tecnicos?.vinculo_urbano || capitalize(clientData.urban_link) || 'Nunca teve'}</td>
         </tr>
+        ${aiData.correcoes && aiData.correcoes.length > 0 ? `
+        <tr>
+          <td class="bg-gray">Correções do Formulário:</td>
+          <td>${aiData.correcoes.map((c: any) => `erro: ${c.original || c.erro || c.text || ''} - correto: ${c.correto || c.corrected || c.correct || ''}`).join('<br>')}</td>
+        </tr>
+        ` : ''}
       </table>
 
       <h3>III. SÍNTESE DO CONTEXTO FÁTICO</h3>

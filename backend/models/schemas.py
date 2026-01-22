@@ -16,6 +16,7 @@ class PeticaoAIOutput(BaseModel):
     resumo_fatos: str
     dados_tecnicos: DadosTecnicos
     lista_provas: List[str]
+    correcoes: List[dict] = []
 
 # --- Modelos da API (Entrada/Saída) ---
 class ClientData(BaseModel):
@@ -39,6 +40,7 @@ class GenerateResponse(BaseModel):
     lista_provas: List[str]
     inss_address: str
     end_cidade_uf: str = ""
+    correcoes: List[dict] = []
     jurisprudencias_selecionadas: List[dict]
     tabela_calculo: List[Any] = []
     valor_causa_extenso: str = "A calcular"

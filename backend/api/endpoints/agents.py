@@ -85,7 +85,7 @@ async def generate_document(
             for j in raw_jurisprudencias
         ]
 
-        # Retorna o JSON que o Template.ts do Frontend espera (inclui cidade/uf da subseção)
+        # Retorna o JSON que o Template.ts do Frontend espera (inclui cidade/uf da subseção e correções)
         return GenerateResponse(
             resumo_fatos=ai_data.resumo_fatos,
             dados_tecnicos=ai_data.dados_tecnicos.model_dump(),
@@ -94,6 +94,7 @@ async def generate_document(
             # Dados enriquecidos pelo Python:
             inss_address=inss_address,
             end_cidade_uf=end_cidade_uf,
+            correcoes=getattr(ai_data, 'correcoes', []),
             jurisprudencias_selecionadas=juris_formatada[:3],
             tabela_calculo=tabela,
             valor_causa_extenso=valor_extenso
