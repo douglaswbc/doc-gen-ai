@@ -64,6 +64,48 @@ export const template: AgentTemplate = {
 
     const capitalize = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
 
+    // --- Helpers para aplicar correções vindas da IA ---
+    const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const applyCorrectionsToString = (text: string, corrections: any[]) => {
+      if (!text || !corrections || corrections.length === 0) return text;
+      let out = String(text);
+      corrections.forEach((c: any) => {
+        const orig = c.original || c.erro || c.text;
+        const corr = c.correto || c.corrected || c.correct || '';
+        if (!orig || !corr) return;
+        const re = new RegExp('\\b' + escapeRegExp(orig) + '\\b', 'gi');
+        out = out.replace(re, corr);
+      });
+      return out;
+    };
+
+    // Clona clientData e aplica correções onde fizer sentido
+    const correctedClientData = (() => {
+      const cd: any = JSON.parse(JSON.stringify(clientData || {}));
+      const corrections = aiData?.correcoes || [];
+
+      const stringFields = [
+        'name', 'nationality', 'marital_status', 'profession', 'address', 'child_name',
+        'cpf', 'rg', 'rg_issuer', 'der', 'nb', 'benefit_status', 'denied_date', 'decision_reason',
+        'activity_before_birth', 'special_insured_period', 'controversial_point', 'previous_benefit',
+        'cnis_period', 'urban_link'
+      ];
+
+      // Aplica correções apenas se houver
+      stringFields.forEach(f => {
+        if (cd[f]) cd[f] = applyCorrectionsToString(cd[f], corrections);
+      });
+
+      // Sempre aplica Title Case simples em name e child_name
+      const toTitle = (s: string) => s.split(/\s+/).filter(Boolean).map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+      if (cd.name) cd.name = toTitle(cd.name);
+      if (cd.child_name) cd.child_name = toTitle(cd.child_name);
+
+      return cd;
+    })();
+
+    const cd = correctedClientData; // alias usado no template
+
     // === 1. CABEÇALHO (ESTRUTURA DE TABELA PARA WORD) ===
     const headerHtml = officeData ? `
     <table width="100%" style="width: 100%; border-bottom: 2px solid #000; margin-bottom: 20px;" cellspacing="0" cellpadding="0">
@@ -137,22 +179,70 @@ export const template: AgentTemplate = {
     // Word lê styles no head. Importante: "table p { margin: 0 }" remove o espaçamento extra nas tabelas.
     const styles = `
       <style>
-        body { font-family: 'Times New Roman', serif; font-size: 12pt; color: #000; line-height: 1.5; }
-        p { margin-top: 0; margin-bottom: 12px; text-align: justify; }
-        
+        /* Página A4 e margens ABNT: esquerda 3cm, superior 3cm, direita 2cm, inferior 2cm */
+        @page { size: A4; margin: 3cm 2cm 2cm 3cm; }
+
+        html, body {
+          height: 100%;
+        }
+
+        body {
+          font-family: 'Times New Roman', serif;
+          font-size: 12pt;
+          line-height: 1.5;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+          margin: 0;
+          /* Não forçar cores aqui para permitir que o visualizador/useTheme controle (dark mode) */
+          color: inherit;
+          background: transparent;
+        }
+
+        p {
+          margin: 0 0 12px 0;
+          text-align: justify;
+          text-justify: inter-word;
+        }
+
         /* Tabelas */
-        table { border-collapse: collapse; width: 100%; font-size: 11pt; }
+        table { border-collapse: collapse; width: 100%; font-size: 11pt; color: #000 !important; }
         td, th { vertical-align: top; }
-        
-        /* Correção para Word: Remove margens de parágrafos dentro de tabelas */
-        table p { margin: 0; line-height: 1.2; } 
-        
+
+        /* Remove margens de parágrafos dentro de tabelas */
+        table p { margin: 0; line-height: 1.2; }
+
         /* Classes utilitárias */
-        .data-table td { border: 1px solid #000; padding: 4px 6px; }
-        .bg-gray { background-color: #f0f0f0; font-weight: bold; width: 40%; }
-        
+        .data-table td { border: 1px solid #000; padding: 6px 8px; }
+        .bg-gray { background-color: #f0f0f0; font-weight: bold; width: 40%; color: #000; }
+
+        h1, h2, h3 { color: #000; }
         h2 { text-align: center; font-size: 14pt; margin: 20px 0; font-weight: bold; }
         h3 { font-size: 12pt; text-transform: uppercase; margin-top: 20px; font-weight: bold; text-decoration: underline; }
+
+        /* Regras para impressão/PDF: evitar quebra de tabelas e repetir cabeçalhos */
+        thead { display: table-header-group; }
+        tfoot { display: table-footer-group; }
+
+        /* Evita que linhas e células sejam cortadas entre páginas */
+        tr, td, th { page-break-inside: avoid; break-inside: avoid; }
+        table { page-break-inside: auto; }
+
+        /* Regras específicas para impressão */
+        @media print {
+          /* Força cores para impressão e fundo branco */
+          * { color: #000 !important; background-color: transparent !important; }
+          html, body { width: 210mm; height: 297mm; }
+          body { margin: 0; background: #fff !important; }
+          .data-table, table { page-break-inside: avoid; -webkit-region-break-inside: avoid; break-inside: avoid; }
+          tr { page-break-inside: avoid; break-inside: avoid; }
+          thead { display: table-header-group; }
+          tfoot { display: table-footer-group; }
+          .page-break { page-break-before: always; break-before: page; }
+          img { max-width: 100%; height: auto; }
+        }
+
+        /* Small utility to keep the calculation table more likely on a single page */
+        .calc-block { page-break-inside: avoid; break-inside: avoid; }
       </style>
     `;
 
@@ -178,10 +268,10 @@ export const template: AgentTemplate = {
       ${priorityBox}
 
       <p>
-        <b>${clientData.name.toUpperCase()}</b>, ${clientData.nationality}, ${clientData.marital_status}, 
-        ${aiData.dados_tecnicos?.profissao_formatada || capitalize(clientData.profession) || 'Agricultora'}, 
-        nascido(a) em ${formatDate(clientData.birth_date)} (${calculateAge(clientData.birth_date)}), portador(a) do CPF nº ${clientData.cpf} e RG nº ${clientData.rg} (${clientData.rg_issuer || ''}), 
-        residente e domiciliado(a) em ${clientData.address}, por meio de seus procuradores infra firmados, 
+        <b>${cd.name.toUpperCase()}</b>, ${cd.nationality}, ${cd.marital_status}, 
+        ${aiData.dados_tecnicos?.profissao_formatada || capitalize(cd.profession) || 'Agricultora'}, 
+        nascido(a) em ${formatDate(cd.birth_date)} (${calculateAge(cd.birth_date)}), portador(a) do CPF nº ${cd.cpf} e RG nº ${cd.rg} (${cd.rg_issuer || ''}), 
+        residente e domiciliado(a) em ${cd.address}, por meio de seus procuradores infra firmados, 
         com endereço eletrônico em ${officeData?.email || 'custodioadvocacia@gmail.com'}, endereço físico descrito no rodapé da página, 
         onde recebe intimações e notificações, de estilo, vem a ínclita presença de Vossa Excelência, com fulcro no art. 5º, inciso V da CF/88, 
         cumulado com a Lei nº 8.078/90 e demais dispositivo aplicáveis à espécie, propor a presente
@@ -201,43 +291,43 @@ export const template: AgentTemplate = {
       <p style="font-weight: bold; margin-bottom: 5px;">RESUMO DAS PRINCIPAIS INFORMAÇÕES DO PROCESSO</p>
       
       <table class="data-table" cellspacing="0" cellpadding="4">
-        <tr><td class="bg-gray">NOME:</td><td>${clientData.name.toUpperCase()}</td></tr>
-        <tr><td class="bg-gray">Idade no Req. Adm.:</td><td>${calculateAge(clientData.birth_date)}</td></tr>
+        <tr><td class="bg-gray">NOME:</td><td>${cd.name.toUpperCase()}</td></tr>
+        <tr><td class="bg-gray">Idade no Req. Adm.:</td><td>${calculateAge(cd.birth_date)}</td></tr>
         <tr><td class="bg-gray">Pedido:</td><td>Salário maternidade – segurado especial</td></tr>
-        <tr><td class="bg-gray">Criança:</td><td>${capitalize(clientData.child_name)}</td></tr>
-        <tr><td class="bg-gray">Data de Nascimento:</td><td>${formatDate(clientData.child_birth_date)}</td></tr>
-        <tr><td class="bg-gray">Data do Req. Adm:</td><td>${formatDate(clientData.der)}</td></tr>
-        <tr><td class="bg-gray">NB:</td><td>${clientData.nb}</td></tr>
-        <tr><td class="bg-gray">Situação do Benefício:</td><td>${capitalize(clientData.benefit_status)}</td></tr>
-        <tr><td class="bg-gray">Data do Indef. Adm:</td><td>${formatDate(clientData.denied_date)}</td></tr>
+        <tr><td class="bg-gray">Criança:</td><td>${capitalize(cd.child_name)}</td></tr>
+        <tr><td class="bg-gray">Data de Nascimento:</td><td>${formatDate(cd.child_birth_date)}</td></tr>
+        <tr><td class="bg-gray">Data do Req. Adm:</td><td>${formatDate(cd.der)}</td></tr>
+        <tr><td class="bg-gray">NB:</td><td>${cd.nb}</td></tr>
+        <tr><td class="bg-gray">Situação do Benefício:</td><td>${capitalize(cd.benefit_status)}</td></tr>
+        <tr><td class="bg-gray">Data do Indef. Adm:</td><td>${formatDate(cd.denied_date)}</td></tr>
         
         <tr>
             <td class="bg-gray">Motivo da Decisão do INSS:</td>
-            <td>${aiData.dados_tecnicos?.motivo_indeferimento || capitalize(clientData.decision_reason)}</td>
+            <td>${aiData.dados_tecnicos?.motivo_indeferimento || capitalize(cd.decision_reason)}</td>
         </tr>
         <tr>
             <td class="bg-gray">Tempo de Trabalho Rural:</td>
-            <td>${aiData.dados_tecnicos?.tempo_atividade || capitalize(clientData.activity_before_birth) || 'Mais de 10 meses antes do nascimento'}</td>
+            <td>${aiData.dados_tecnicos?.tempo_atividade || capitalize(cd.activity_before_birth) || 'Mais de 10 meses antes do nascimento'}</td>
         </tr>
         <tr>
             <td class="bg-gray">Período Declarado:</td>
-            <td>${aiData.dados_tecnicos?.periodo_rural_declarado || clientData.special_insured_period}</td>
+            <td>${aiData.dados_tecnicos?.periodo_rural_declarado || cd.special_insured_period}</td>
         </tr>
         <tr>
             <td class="bg-gray">Ponto Controvertido:</td>
-            <td>${aiData.dados_tecnicos?.ponto_controvertido || capitalize(clientData.controversial_point) || 'Carência'}</td>
+            <td>${aiData.dados_tecnicos?.ponto_controvertido || capitalize(cd.controversial_point) || 'Carência'}</td>
         </tr>
         <tr>
             <td class="bg-gray">Benefício Anterior:</td>
-            <td>${aiData.dados_tecnicos?.beneficio_anterior || capitalize(clientData.previous_benefit) || 'Não consta'}</td>
+            <td>${aiData.dados_tecnicos?.beneficio_anterior || capitalize(cd.previous_benefit) || 'Não consta'}</td>
         </tr>
         <tr>
             <td class="bg-gray">CNIS Averbado:</td>
-            <td>${aiData.dados_tecnicos?.cnis_averbado || capitalize(clientData.cnis_period) || 'Não consta'}</td>
+            <td>${aiData.dados_tecnicos?.cnis_averbado || capitalize(cd.cnis_period) || 'Não consta'}</td>
         </tr>
         <tr>
             <td class="bg-gray">Vínculo Urbano:</td>
-            <td>${aiData.dados_tecnicos?.vinculo_urbano || capitalize(clientData.urban_link) || 'Nunca teve'}</td>
+            <td>${aiData.dados_tecnicos?.vinculo_urbano || capitalize(cd.urban_link) || 'Nunca teve'}</td>
         </tr>
         ${aiData.correcoes && aiData.correcoes.length > 0 ? `
         <tr>
