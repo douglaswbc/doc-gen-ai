@@ -38,6 +38,7 @@ class GenerateResponse(BaseModel):
     dados_tecnicos: dict
     lista_provas: List[str]
     inss_address: str
+    end_cidade_uf: str = ""
     jurisprudencias_selecionadas: List[dict]
     tabela_calculo: List[Any] = []
     valor_causa_extenso: str = "A calcular"

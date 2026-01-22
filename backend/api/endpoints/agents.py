@@ -6,7 +6,7 @@ from typing import Optional
 
 from models.schemas import GenerateRequest, GenerateResponse
 from agents.workflow import app_graph
-from services.search import search_inss_address, search_jurisprudence
+from services.search import search_inss_address, search_jurisprudence, search_judicial_subsection
 from services.calculations import generate_payment_table, get_valor_extenso
 
 router = APIRouter()
@@ -50,8 +50,9 @@ async def generate_document(
         print("🔍 Buscando INSS e Jurisprudência...")
         inss_task = search_inss_address(request.clientData.address)
         juris_task = search_jurisprudence(f"{request.docType} rural recentes")
-        
-        inss_address, raw_jurisprudencias = await asyncio.gather(inss_task, juris_task)
+        subsection_task = search_judicial_subsection(request.clientData.address)
+
+        inss_address, raw_jurisprudencias, end_cidade_uf = await asyncio.gather(inss_task, juris_task, subsection_task)
 
         # 2. CÁLCULOS FINANCEIROS
         print("💰 Realizando cálculos...")
@@ -84,7 +85,7 @@ async def generate_document(
             for j in raw_jurisprudencias
         ]
 
-        # Retorna o JSON que o Template.ts do Frontend espera
+        # Retorna o JSON que o Template.ts do Frontend espera (inclui cidade/uf da subseção)
         return GenerateResponse(
             resumo_fatos=ai_data.resumo_fatos,
             dados_tecnicos=ai_data.dados_tecnicos.model_dump(),
@@ -92,6 +93,7 @@ async def generate_document(
             
             # Dados enriquecidos pelo Python:
             inss_address=inss_address,
+            end_cidade_uf=end_cidade_uf,
             jurisprudencias_selecionadas=juris_formatada[:3],
             tabela_calculo=tabela,
             valor_causa_extenso=valor_extenso

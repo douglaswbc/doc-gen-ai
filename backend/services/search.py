@@ -75,3 +75,39 @@ async def search_jurisprudence(query: str) -> list:
         pass
         
     return []
+
+
+async def search_judicial_subsection(user_address: str) -> str:
+    """Busca a subseção judiciária (Fórum/Subseção) mais próxima usando Serper Places API"""
+    if not SERPER_API_KEY:
+        print("⚠️ SERPER_API_KEY ausente. Retornando mock de subseção.")
+        return "Subseção Judiciária - Cidade (Configure a API Key)"
+
+    url = "https://google.serper.dev/places"
+    # Procuramos por termos que indiquem o fórum ou subseção judiciária mais próxima
+    payload = {
+        "q": f"Fórum Subsecao Judiciaria near {user_address}",
+        "gl": "br",
+        "hl": "pt-br"
+    }
+    headers = {
+        'X-API-KEY': SERPER_API_KEY,
+        'Content-Type': 'application/json'
+    }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, headers=headers, json=payload, timeout=10.0)
+
+        if response.status_code == 200:
+            data = response.json()
+            if "places" in data and len(data["places"]) > 0:
+                place = data["places"][0]
+                title = place.get('title', 'Subseção Judiciária')
+                address = place.get('address', '')
+                # Tenta extrair apenas cidade/estado se disponível no endereço
+                return f"{title} - {address}"
+    except Exception as e:
+        print(f"❌ Erro na busca Serper (subseção): {e}")
+
+    return "Subseção Judiciária mais próxima (Não localizada)"
