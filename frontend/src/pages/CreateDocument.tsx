@@ -195,14 +195,18 @@ const CreateDocument: React.FC = () => {
     delete payload.zip_code;
     delete payload.neighborhood;
 
-    // Ensure rural_start_date is null unless it's a valid YYYY-MM-DD date
+    // Remove legacy single-child columns if present in clientData to avoid PGRST204 errors
+    delete payload.child_name;
+    delete payload.child_cpf;
+    delete payload.child_birth_date;
+
+    // Persist the raw input for 'Início atividade rural' into the clients table.
+    // If the value exists, set it on `rural_start_date` and also append to `rural_tasks` for history.
     const ruralVal = payload.rural_start_date;
-    const isIsoDate = typeof ruralVal === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(ruralVal);
-    if (!isIsoDate) {
-      if (ruralVal && ruralVal !== '') {
-        // append free-text to rural_tasks to preserve info
-        payload.rural_tasks = [payload.rural_tasks || '', `Início atividade rural: ${ruralVal}`].filter(Boolean).join('\n');
-      }
+    if (ruralVal && ruralVal !== '') {
+      payload.rural_start_date = ruralVal;
+      payload.rural_tasks = [payload.rural_tasks || '', `Início atividade rural: ${ruralVal}`].filter(Boolean).join('\n');
+    } else {
       payload.rural_start_date = null;
     }
 
