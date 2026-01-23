@@ -64,6 +64,53 @@ export const template: AgentTemplate = {
 
     const capitalize = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
 
+    // === Helpers para cidade/UF e data longa ===
+    const getCityUf = () => {
+      const raw = (aiData.end_cidade_uf || (clientData && (clientData.city || clientData.address)) || '').toString().trim();
+      if (!raw) return 'COMPETENTE';
+      let s = raw.replace(/\s+/g, ' ').trim();
+      // If the raw contains 'subseção' or 'subsecao', extract the last City-UF occurrence
+      if (/subse[cç]ã?o|subsecao/i.test(s)) {
+        const reAll = /([A-Za-zÀ-ÖØ-öø-ÿ\.\s]+)[,\-]\s*([A-Za-z]{2})/g;
+        let match: RegExpExecArray | null;
+        let last: RegExpExecArray | null = null;
+        while ((match = reAll.exec(s)) !== null) last = match;
+        if (last) {
+          const city = last[1].trim().split(/\s+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+          const uf = last[2].toUpperCase();
+          return `${city}-${uf}`;
+        }
+        // fallback: remove the phrase and continue
+        s = s.replace(/subse[cç]ã?o\s+judiciari[ao]\s*(de|da|do)?\s*/ig, '').trim();
+      }
+
+      // Try City - UF or City, UF at end
+      let m = s.match(/([A-Za-zÀ-ÖØ-öø-ÿ\.\s]+)[,\-]\s*([A-Za-z]{2})$/);
+      if (m) {
+        const city = m[1].trim().split(/\s+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        const uf = m[2].toUpperCase();
+        return `${city}-${uf}`;
+      }
+
+      m = s.match(/([A-Za-zÀ-ÖØ-öø-ÿ\.\s]+)\s+([A-Za-z]{2})$/);
+      if (m) {
+        const city = m[1].trim().split(/\s+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        const uf = m[2].toUpperCase();
+        return `${city}-${uf}`;
+      }
+
+      // If none found, return only city title-cased
+      const onlyCity = s.split(',')[0].trim();
+      return onlyCity.split(/\s+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    };
+
+    const formatLongDate = (d?: string | Date) => {
+      const date = d ? (typeof d === 'string' ? new Date(d) : d) : new Date();
+      if (isNaN(date.getTime())) return d || '';
+      const months = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+      return `${date.getDate()} de ${months[date.getMonth()]} de ${date.getFullYear()}`;
+    };
+
     // --- Helpers para aplicar correções vindas da IA ---
     const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const applyCorrectionsToString = (text: string, corrections: any[]) => {
@@ -258,7 +305,7 @@ export const template: AgentTemplate = {
       ${headerHtml}
 
       <p align="center" style="font-weight: bold; text-transform: uppercase; margin-bottom: 20px;">
-        AO JUÍZO FEDERAL DA VARA DO JUIZADO ESPECIAL FEDERAL DA COMARCA ${aiData.end_cidade_uf || 'COMPETENTE'}.
+        AO JUÍZO FEDERAL DA VARA DO JUIZADO ESPECIAL FEDERAL DA COMARCA DE ${getCityUf().toUpperCase()}.
       </p>
 
       <div style="text-align: center; font-weight: bold; margin: 20px 0;">
@@ -397,11 +444,23 @@ export const template: AgentTemplate = {
         <p style="margin: 0;">O salário-maternidade rural é calculado com base no valor de 1 (um) salário mínimo vigente no mês de competência (Lei 8.213/91). Benefício de 120 dias.</p>
       </div>
 
-      <div style="margin-top: 60px; text-align: center;">
-        <p>Termos em que, pede e espera deferimento.</p>
-        <p>${aiData.end_cidade_uf || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.</p>
-        <br><br><br>
-        ${signersHtml}
+      <div style="margin-top: 60px;">
+        <p style="text-align: left;">Termos em que, pede e espera deferimento.</p>
+        <p style="text-align: right;">${(() => {
+            const raw = getCityUf();
+            // Format city name properly for closing (Title Case city, uppercase UF when available)
+            const m = raw.match(/^(.+)-([A-Z]{2})$/i);
+            if (m) {
+              const city = m[1].split(/\s+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+              const state = m[2].toUpperCase();
+              return `${city}-${state}, ${formatLongDate(new Date())}.`;
+            }
+            const cityTitle = raw.split(/\s+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+            return `${cityTitle}, ${formatLongDate(new Date())}.`;
+          })()}</p>
+        <div style="margin-top: 20px; display: flex; justify-content: center; gap: 40px; flex-wrap: wrap;">
+          ${signersHtml}
+        </div>
       </div>
 
       <div style="margin-top: 40px; padding-top: 15px; border-top: 1px solid #ccc; font-size: 8pt; color: #666; display: flex; justify-content: space-between;">

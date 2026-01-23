@@ -104,8 +104,70 @@ async def search_judicial_subsection(user_address: str) -> str:
             if "places" in data and len(data["places"]) > 0:
                 place = data["places"][0]
                 title = place.get('title', 'Subseção Judiciária')
-                address = place.get('address', '')
-                # Tenta extrair apenas cidade/estado se disponível no endereço
+                address = place.get('address', '') or ''
+                combined = f"{title} {address}".strip()
+
+                # Heurísticas para extrair Cidade e UF (ex: Santarém-PA, Santarém - PA, Santarém, PA)
+                def extract_city_uf(text: str) -> str:
+                    if not text:
+                        return ''
+                    # Normalize separators
+                    t = text.replace('\u2013', '-').replace('\u2014', '-').replace('/', '-').replace('\n', ' ')
+                    # Try patterns like "Cidade - UF" or "Cidade, UF"
+                    import re
+                    m = re.search(r"([A-Za-zÀ-ÖØ-öø-ÿ\.\s]+)[,-]\s*([A-Za-z]{2})\b", t)
+                    if m:
+                        city = m.group(1).strip()
+                        state = m.group(2).upper()
+                        return f"{city}-{state}"
+                    # Try last token as state code
+                    parts = re.split(r"[,\-]", t)
+                    if len(parts) >= 2:
+                        last = parts[-1].strip()
+                        if re.match(r"^[A-Za-z]{2}$", last):
+                            city = parts[-2].strip()
+                            return f"{city}-{last.upper()}"
+                    # Fallback: try to find two-letter uppercase token
+                    m2 = re.search(r"([A-Za-zÀ-ÿ\s\.]+)\s+([A-Z]{2})\b", t)
+                    if m2:
+                        return f"{m2.group(1).strip()}-{m2.group(2)}"
+                    return ''
+
+                cityuf = extract_city_uf(combined)
+                def normalize_city_uf(s: str) -> str:
+                    if not s:
+                        return ''
+                    t = s.strip()
+                    # remove ONLY the phrase 'Subseção Judiciária (de|da|do)' (case-insensitive, with/without accents)
+                    import re
+                    t = re.sub(r'(?i)subse[cç]ã?o\s+judiciari[ao]\s*(de|da|do)?\s*', '', t)
+                    t = ' '.join(t.split())
+                    # try to capture City and UF
+                    import re
+                    m = re.search(r"([A-Za-zÀ-ÖØ-öø-ÿ\.\s]+)[,\-]\s*([A-Za-z]{2})\b", t)
+                    if m:
+                        city = m.group(1).strip()
+                        uf = m.group(2).upper()
+                        # Title-case city
+                        city_t = ' '.join([w.capitalize() for w in city.split()])
+                        return f"{city_t}-{uf}"
+                    # try last token as UF
+                    parts = t.split()
+                    if len(parts) >= 2 and re.match(r"^[A-Za-z]{2}$", parts[-1]):
+                        uf = parts[-1].upper()
+                        city = ' '.join(parts[:-1])
+                        city_t = ' '.join([w.capitalize() for w in city.split()])
+                        return f"{city_t}-{uf}"
+                    return ''
+
+                normalized = normalize_city_uf(cityuf)
+                if normalized:
+                    return normalized
+                # Fallback: try normalizing combined text
+                normalized2 = normalize_city_uf(combined)
+                if normalized2:
+                    return normalized2
+                # Final fallback: return title and address concatenated
                 return f"{title} - {address}"
     except Exception as e:
         print(f"❌ Erro na busca Serper (subseção): {e}")

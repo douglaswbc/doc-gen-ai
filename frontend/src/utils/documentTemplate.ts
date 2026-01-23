@@ -13,6 +13,68 @@ export const buildHtml = (aiData: any, clientData: any, officeData: any, signers
         return age + ' anos';
     };
 
+    // Normaliza valores de cidade/UF retornados pela IA ou pelo serviço de busca
+    const sanitizeCityUf = (raw?: string) => {
+      const v = (raw || '').toString().trim();
+      if (!v) return '';
+      let s = v.replace(/\s+/g, ' ').trim();
+      // If string contains 'subseção' or 'subsecao', attempt robust extraction of City-UF
+      if (/subse[cç]ã?o|subsecao/i.test(s)) {
+        // try to find any City- UF occurrences and return the last one found
+        const reAll = /([A-Za-zÀ-ÖØ-öø-ÿ\.\s]+)[,\-]\s*([A-Za-z]{2})/g;
+        let match: RegExpExecArray | null;
+        let last: RegExpExecArray | null = null;
+        while ((match = reAll.exec(s)) !== null) last = match;
+        if (last) {
+          const city = last[1].trim().split(/\s+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+          const uf = last[2].toUpperCase();
+          return `${city}-${uf}`;
+        }
+        // Fallback: remove the phrase and continue
+        s = s.replace(/subse[cç]ã?o\s+judiciari[ao]\s*(de|da|do)?\s*/ig, '').trim();
+      }
+      s = s.replace(/^[,\-\s]+|[,\-\s]+$/g, '');
+
+      // Try to capture "City - UF" or "City, UF"
+      let m = s.match(/([A-Za-zÀ-ÖØ-öø-ÿ\.\s]+)[,\-]\s*([A-Za-z]{2})$/);
+      if (m) {
+        const city = m[1].trim().split(/\s+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        const uf = m[2].toUpperCase();
+        return `${city}-${uf}`;
+      }
+
+      // Try final token as UF (e.g., "Araguaína TO")
+      m = s.match(/([A-Za-zÀ-ÖØ-öø-ÿ\.\s]+)\s+([A-Za-z]{2})$/);
+      if (m) {
+        const city = m[1].trim().split(/\s+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        const uf = m[2].toUpperCase();
+        return `${city}-${uf}`;
+      }
+
+      // If no UF found, try to extract last "City-XX" occurrence inside the string
+      const m2 = s.match(/([A-Za-zÀ-ÖØ-öø-ÿ\.\s]+)[,\-]\s*([A-Za-z]{2})/g);
+      if (m2 && m2.length > 0) {
+        const last = m2[m2.length - 1];
+        const mm = last.match(/([A-Za-zÀ-ÖØ-öø-ÿ\.\s]+)[,\-]\s*([A-Za-z]{2})/);
+        if (mm) {
+          const city = mm[1].trim().split(/\s+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+          const uf = mm[2].toUpperCase();
+          return `${city}-${uf}`;
+        }
+      }
+
+      // Fallback: if the string already looks like City only, return Title Case city
+      const onlyCity = s.split(',')[0].trim();
+      const cityTitle = onlyCity.split(/\s+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+      return cityTitle;
+    };
+
+    const formatLongDate = (d?: Date) => {
+      const date = d || new Date();
+      const months = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+      return `${date.getDate()} de ${months[date.getMonth()]} de ${date.getFullYear()}`;
+    };
+
     // 1. Cabeçalho do Escritório (Se existir)
     const headerHtml = officeData ? `
     <div style="text-align: center; font-family: sans-serif; margin-bottom: 20px;">
@@ -77,7 +139,7 @@ export const buildHtml = (aiData: any, clientData: any, officeData: any, signers
       ${headerHtml}
 
       <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 20px;">
-        AO JUÍZO FEDERAL DA VARA DO JUIZADO ESPECIAL FEDERAL DA SUBSEÇÃO JUDICIÁRIA DE ${aiData.end_cidade_uf || 'COMPETENTE'}
+        AO JUÍZO FEDERAL DA VARA DO JUIZADO ESPECIAL FEDERAL DA COMARCA DE ${sanitizeCityUf(aiData.end_cidade_uf) ? sanitizeCityUf(aiData.end_cidade_uf).toUpperCase() : 'COMPETENTE'}
       </p>
 
       <div style="margin: 20px 0; font-weight: bold; text-transform: uppercase;">
@@ -144,11 +206,16 @@ export const buildHtml = (aiData: any, clientData: any, officeData: any, signers
         <tr style="font-weight: bold;"><td colspan="2" style="text-align: right; padding-right: 10px;">TOTAL</td><td>${totalFormatted}</td></tr>
       </table>
 
-      <div style="margin-top: 60px; text-align: center;">
-        <p>Termos em que, pede deferimento.</p>
-        <p>${aiData.end_cidade_uf || 'Local'}, ${new Date().toLocaleDateString('pt-BR')}.</p>
-        <br><br>
-        ${signersHtml}
+      <div style="margin-top: 60px;">
+        <p style="text-align: left;">Termos em que, pede deferimento.</p>
+        <p style="text-align: right;">${(() => {
+            const c = sanitizeCityUf(aiData.end_cidade_uf) || '';
+            if (c) return `${c}, ${formatLongDate(new Date())}.`;
+            return `Local, ${formatLongDate(new Date())}.`;
+        })()}</p>
+        <div style="margin-top: 20px; display: flex; justify-content: center; gap: 40px; flex-wrap: wrap;">
+          ${signersHtml}
+        </div>
       </div>
 
     </div>
