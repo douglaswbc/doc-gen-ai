@@ -83,6 +83,7 @@ const App: React.FC = () => {
               {/* App Protegido */}
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/create-document" element={<ProtectedRoute><CreateDocument /></ProtectedRoute>} />
+              <Route path="/clients/:clientId/create-document" element={<ProtectedRoute><CreateDocument /></ProtectedRoute>} />
               <Route path="/my-documents" element={<ProtectedRoute><MyDocuments /></ProtectedRoute>} />
               <Route path="/my-clients" element={<ProtectedRoute><MyClients /></ProtectedRoute>} />
               <Route path="/clients/:id" element={<ProtectedRoute><ClientDetails /></ProtectedRoute>} />
@@ -90,7 +91,9 @@ const App: React.FC = () => {
 
               {/* Rotas Dinâmicas */}
               <Route path="/modules/:module" element={<ProtectedRoute><SphereSelection /></ProtectedRoute>} />
+              <Route path="/clients/:clientId/modules/:module" element={<ProtectedRoute><SphereSelection /></ProtectedRoute>} />
               <Route path="/modules/:module/:sphere" element={<ProtectedRoute><AgentSelection /></ProtectedRoute>} />
+              <Route path="/clients/:clientId/modules/:module/:sphere" element={<ProtectedRoute><AgentSelection /></ProtectedRoute>} />
 
               <Route path="/judicial" element={<Navigate to="/modules/Judicial" replace />} />
               <Route path="/judicial/:sphere" element={<ProtectedRoute><AgentSelection /></ProtectedRoute>} />

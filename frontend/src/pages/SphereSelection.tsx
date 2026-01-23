@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useNavigation } from '../hooks/useNavigation';
 
 const SphereSelection: React.FC = () => {
-  const { module } = useParams<{ module: string }>();
+  const { module, clientId } = useParams<{ module: string; clientId?: string }>();
   const { structure, loading } = useNavigation();
   const navigate = useNavigate();
 
@@ -42,7 +42,7 @@ const SphereSelection: React.FC = () => {
           {spheres.map((sphere) => (
             <Link 
               key={sphere}
-              to={`/modules/${module}/${sphere}`}
+              to={clientId ? `/clients/${clientId}/modules/${module}/${sphere}` : `/modules/${module}/${sphere}`}
               className="group bg-white dark:bg-card-dark p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-xl hover:border-primary/50 transition-all hover:-translate-y-1"
             >
               <div className="size-14 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">

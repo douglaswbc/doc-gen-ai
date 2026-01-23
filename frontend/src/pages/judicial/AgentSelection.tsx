@@ -16,7 +16,7 @@ const categoryVisuals: Record<string, { icon: string; color: string; bg: string 
 };
 
 const AgentSelection: React.FC = () => {
-  const { module, sphere } = useParams<{ module: string; sphere: string }>();
+  const { module, sphere, clientId } = useParams<{ module: string; sphere: string; clientId?: string }>();
   const navigate = useNavigate();
   const { structure, loading } = useNavigation();
 
@@ -62,7 +62,8 @@ const AgentSelection: React.FC = () => {
     params.set('type', agent.name);
     params.set('sphere', sphere || '');
     params.set('tasks', encodeURIComponent(JSON.stringify(agent.features || [])));
-    navigate(`/create-document?${params.toString()}`);
+    const base = clientId ? `/clients/${clientId}/create-document` : '/create-document';
+    navigate(`${base}?${params.toString()}`);
   };
 
   if (loading) {

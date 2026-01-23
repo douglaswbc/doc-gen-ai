@@ -27,6 +27,7 @@ const MyClients: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModuleModalOpen, setIsModuleModalOpen] = useState(false);
+  const [modalClientId, setModalClientId] = useState<string | null>(null);
 
   const moduleVisuals: Record<string, any> = {
     'Judicial': { icon: 'gavel', color: 'text-blue-600', bg: 'bg-blue-100 dark:bg-blue-900/30', desc: 'Ações previdenciárias rurais e urbanas.' },
@@ -71,9 +72,13 @@ const MyClients: React.FC = () => {
     }
   };
 
-  const startNewClient = (path: string) => {
+  const startNewClient = (path: string, clientId?: string) => {
     localStorage.removeItem('temp_client_id_for_doc');
-    navigate(path);
+    const finalPath = clientId ? `/clients/${clientId}${path}` : path;
+    // reset modal client id after navigation
+    setModalClientId(null);
+    setIsModuleModalOpen(false);
+    navigate(finalPath);
   };
 
   const filteredClients = clients.filter(c =>
@@ -160,9 +165,17 @@ const MyClients: React.FC = () => {
                   <span className="material-symbols-outlined text-xs">badge</span> {client.cpf || 'Sem CPF'}
                 </p>
 
-                <Link to={`/clients/${client.id}`} className="block w-full py-2.5 text-center rounded-lg bg-slate-50 dark:bg-slate-800 text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-primary hover:text-white transition-colors">
-                  Acessar Formulário
-                </Link>
+                    <div className="flex gap-2">
+                      <Link to={`/clients/${client.id}`} className="flex-1 py-2.5 text-center rounded-lg bg-slate-50 dark:bg-slate-800 text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-primary hover:text-white transition-colors">
+                        Acessar Formulário
+                      </Link>
+                      <button
+                        onClick={() => { setModalClientId(client.id); setIsModuleModalOpen(true); }}
+                        className="flex-1 py-2.5 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-all"
+                      >
+                        Gerar Novo Documento
+                      </button>
+                    </div>
               </div>
             ))}
           </div>
@@ -194,7 +207,7 @@ const MyClients: React.FC = () => {
                   return (
                     <button
                       key={modName}
-                      onClick={() => startNewClient(`/modules/${modName}`)}
+                      onClick={() => startNewClient(`/modules/${modName}`, modalClientId || undefined)}
                       className="w-full flex items-center gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-primary hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all group text-left"
                     >
                       <div className={`size-10 rounded-full flex items-center justify-center ${visual.bg} ${visual.color}`}>

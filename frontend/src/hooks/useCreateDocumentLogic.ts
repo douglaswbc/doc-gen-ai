@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useDocumentGenerator } from './useDocumentGenerator';
@@ -46,6 +46,22 @@ export const useCreateDocumentLogic = () => {
     const tasksParam = searchParams.get('tasks');
     const sphereParam = searchParams.get('sphere'); // <--- A linha que faltava
     const availableTasks = tasksParam ? JSON.parse(decodeURIComponent(tasksParam)) : [];
+    const { clientId } = useParams<{ clientId?: string }>();
+
+    // If a clientId is present in the path, load that client and hydrate the form
+    useEffect(() => {
+        const loadClient = async () => {
+            if (!clientId) return;
+            try {
+                const { data, error } = await supabase.from('clients').select('*').eq('id', clientId).single();
+                if (error) throw error;
+                if (data) setClientData(prev => ({ ...prev, ...data }));
+            } catch (err) {
+                console.error('Erro ao carregar cliente por clientId:', err);
+            }
+        };
+        loadClient();
+    }, [clientId]);
 
     // === FUNÇÃO PRINCIPAL DE GERAÇÃO (CONECTADA AO PYTHON) ===
     const generate = async (
