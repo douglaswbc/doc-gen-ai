@@ -52,7 +52,9 @@ const ClientDetails: React.FC = () => {
   const startNewDocument = (path: string) => {
     if (!id) return;
     localStorage.setItem('temp_client_id_for_doc', id);
-    navigate(path);
+    const finalPath = `/clients/${id}${path}`;
+    setIsModuleModalOpen(false);
+    navigate(finalPath);
   };
 
   if (loading) return <div className="flex h-screen items-center justify-center"><span className="material-symbols-outlined animate-spin text-4xl text-primary">progress_activity</span></div>;
@@ -162,7 +164,7 @@ const ClientDetails: React.FC = () => {
             
             <div className="space-y-3">
               <button 
-                onClick={() => startNewDocument('/judicial')}
+                onClick={() => startNewDocument('/modules/Judicial')}
                 className="w-full flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-primary hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all group text-left"
               >
                 <div className="size-10 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center">
