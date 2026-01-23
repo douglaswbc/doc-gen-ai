@@ -27,7 +27,9 @@ export const useCreateDocumentLogic = () => {
     // Estado do Formulário
     const [clientData, setClientData] = useState<ClientData>({
         name: '', nationality: 'Brasileira', marital_status: '', profession: 'Agricultora', birth_date: '', cpf: '', rg: '', rg_issuer: '', address: '',
+        zip_code: '', city: '', state: '', neighborhood: '',
         child_name: '', child_cpf: '', child_birth_date: '',
+        children: [{ name: '', cpf: '', birth_date: '' }],
         der: '', nb: '', benefit_status: 'indeferido',
         denied_date: '', decision_reason: '', activity_before_birth: '', special_insured_period: '',
         controversial_point: '', previous_benefit: 'Não consta', cnis_period: 'Não consta', urban_link: 'Nunca teve',
@@ -55,7 +57,11 @@ export const useCreateDocumentLogic = () => {
             try {
                 const { data, error } = await supabase.from('clients').select('*').eq('id', clientId).single();
                 if (error) throw error;
-                if (data) setClientData(prev => ({ ...prev, ...data }));
+                if (data) {
+                    // Map DB single child fields into children array for the UI
+                    const children = [{ name: data.child_name || '', cpf: data.child_cpf || '', birth_date: data.child_birth_date || '' }];
+                    setClientData(prev => ({ ...prev, ...data, children }));
+                }
             } catch (err) {
                 console.error('Erro ao carregar cliente por clientId:', err);
             }

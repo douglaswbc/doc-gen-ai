@@ -182,8 +182,29 @@ const CreateDocument: React.FC = () => {
     if (!user || !clientData.name) return null;
 
     // Convert empty strings to null for DATE columns to avoid Supabase 400 errors
+    // Prepare payload for DB: map first child into DB columns and remove UI-only `children` array
     const payload: any = { ...clientData, user_id: user.id, updated_at: new Date().toISOString() };
-    const dateFields = ['birth_date', 'child_birth_date', 'der', 'denied_date', 'rural_start_date'];
+    const dateFields = ['birth_date', 'child_birth_date', 'der', 'denied_date'];
+
+    // Remove UI-only fields before upsert
+    delete payload.children;
+
+    // Remove address fields not present in DB to avoid Supabase errors
+    delete payload.city;
+    delete payload.state;
+    delete payload.zip_code;
+    delete payload.neighborhood;
+
+    // Ensure rural_start_date is null unless it's a valid YYYY-MM-DD date
+    const ruralVal = payload.rural_start_date;
+    const isIsoDate = typeof ruralVal === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(ruralVal);
+    if (!isIsoDate) {
+      if (ruralVal && ruralVal !== '') {
+        // append free-text to rural_tasks to preserve info
+        payload.rural_tasks = [payload.rural_tasks || '', `Início atividade rural: ${ruralVal}`].filter(Boolean).join('\n');
+      }
+      payload.rural_start_date = null;
+    }
 
     dateFields.forEach(field => {
       if (payload[field] === '') {
@@ -195,11 +216,48 @@ const CreateDocument: React.FC = () => {
     if (profile?.office_id) payload.office_id = profile.office_id;
 
     try {
+      // Upsert client row (do NOT include children here; children are persisted via the backend endpoint)
       const { data, error } = await supabase.from('clients').upsert(payload).select().single();
       if (error) {
         console.error('Supabase error saving client:', error);
         throw error;
       }
+
+      // Persist children to normalized table via backend endpoint
+      try {
+          if (clientData.children && Array.isArray(clientData.children) && clientData.children.length > 0) {
+          const sessionRes = await supabase.auth.getSession();
+          const token = sessionRes?.data?.session?.access_token;
+          const childrenBody = clientData.children.map((c: any) => ({ name: c.name || null, cpf: c.cpf || null, birth_date: c.birth_date || null }));
+          const apiBase = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || 'http://localhost:8000';
+          const resp = await fetch(`${apiBase}/api/clients/${data.id}/children`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify(childrenBody)
+          });
+          if (!resp.ok) {
+            const text = await resp.text().catch(() => 'no body');
+            console.error('Failed to persist children:', resp.status, text);
+          }
+
+          // Also try to persist children JSON into clients.children column (if table has that column)
+          try {
+            const { data: updData, error: updError } = await supabase.from('clients').update({ children: childrenBody }).eq('id', data.id).select().single();
+            if (updError) {
+              // If column doesn't exist, supabase will return an error — ignore silently
+              console.warn('Could not update clients.children (maybe column missing):', updError.message || updError);
+            }
+          } catch (err) {
+            console.error('Error updating clients.children column:', err);
+          }
+        }
+      } catch (err) {
+        console.error('Error calling children endpoint:', err);
+      }
+
       return data;
     } catch (error) {
       toast.error('Erro ao salvar dados do cliente.');
@@ -268,6 +326,31 @@ const CreateDocument: React.FC = () => {
 
   const inputClass = "w-full p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary outline-none transition-all";
   const labelClass = "block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1";
+
+  const [cepLoading, setCepLoading] = useState(false);
+
+  const lookupCep = async (cepRaw?: string) => {
+    const cep = (cepRaw || clientData.zip_code || '').toString().replace(/\D/g, '');
+    if (!cep || cep.length !== 8) {
+      toast.error('CEP inválido. Informe 8 dígitos.');
+      return;
+    }
+    setCepLoading(true);
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+      if (!res.ok) throw new Error('Network response not ok');
+      const data = await res.json();
+      if (data.erro) { toast.error('CEP não encontrado.'); return; }
+      const address = `${data.logradouro || ''}${data.bairro ? ', ' + data.bairro : ''}${data.localidade ? ', ' + data.localidade : ''} - ${data.uf || ''}`;
+      setClientData(prev => ({ ...prev, zip_code: cep, neighborhood: data.bairro || '', city: data.localidade || '', state: data.uf || '', address }));
+      toast.success('Endereço preenchido pelo CEP.');
+    } catch (err) {
+      console.error('Erro ao consultar CEP', err);
+      toast.error('Erro ao consultar CEP.');
+    } finally {
+      setCepLoading(false);
+    }
+  };
 
   return (
     <div className="flex-1 w-full max-w-screen-2xl mx-auto p-4 sm:p-6 lg:p-8">
@@ -419,45 +502,129 @@ const CreateDocument: React.FC = () => {
                     </select>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div><label className={labelClass}>Profissão</label><input value={clientData.profession} onChange={e => setClientData({ ...clientData, profession: e.target.value })} className={inputClass} placeholder="Ex: Agricultora" /></div>
-                  <div><label className={labelClass}>Data de Nascimento</label><input type="date" value={clientData.birth_date} onChange={e => setClientData({ ...clientData, birth_date: e.target.value })} className={inputClass} /></div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div><label className={labelClass}>Profissão</label><input value={clientData.profession ?? ''} onChange={e => setClientData({ ...clientData, profession: e.target.value })} className={inputClass} placeholder="Ex: Agricultora" /></div>
+                  <div><label className={labelClass}>Data de Nascimento</label><input type="date" value={clientData.birth_date ?? ''} onChange={e => setClientData({ ...clientData, birth_date: e.target.value })} className={inputClass} /></div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div><label className={labelClass}>CPF</label><input value={clientData.cpf} onChange={e => setClientData({ ...clientData, cpf: e.target.value })} className={inputClass} placeholder="000.000.000-00" /></div>
-                  <div><label className={labelClass}>RG</label><input value={clientData.rg} onChange={e => setClientData({ ...clientData, rg: e.target.value })} className={inputClass} placeholder="Número" /></div>
-                  <div><label className={labelClass}>Órgão Exp.</label><input value={clientData.rg_issuer} onChange={e => setClientData({ ...clientData, rg_issuer: e.target.value })} className={inputClass} placeholder="Ex: SSP/PA" /></div>
+                  <div>
+                    <label className={labelClass}>CPF</label>
+                    <input
+                      inputMode="numeric"
+                      pattern="\d*"
+                      maxLength={11}
+                      value={clientData.cpf}
+                      onChange={e => setClientData({ ...clientData, cpf: e.target.value.replace(/\D/g,'').slice(0,11) })}
+                      className={inputClass}
+                      placeholder="00000000000"
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>RG</label>
+                    <input value={clientData.rg} onChange={e => setClientData({ ...clientData, rg: e.target.value })} className={inputClass} placeholder="Número" />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Órgão Exp.</label>
+                    <input value={clientData.rg_issuer} onChange={e => setClientData({ ...clientData, rg_issuer: e.target.value })} className={inputClass} placeholder="Ex: SSP/PA" />
+                  </div>
                 </div>
-                <div><label className={labelClass}>Endereço Completo</label><input value={clientData.address} onChange={e => setClientData({ ...clientData, address: e.target.value })} className={inputClass} placeholder="Rua, Número, Bairro, Cidade - UF" /></div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="md:col-span-1">
+                    <label className={labelClass}>CEP</label>
+                    <div className="flex gap-2">
+                      <input value={clientData.zip_code} onChange={e => setClientData({ ...clientData, zip_code: e.target.value.replace(/\D/g,'') })} className={`${inputClass} md:flex-1`} placeholder="00000000" />
+                      <button type="button" onClick={() => lookupCep()} disabled={cepLoading} className="px-3 py-2 rounded-lg bg-primary text-white font-bold hover:bg-primary/90 transition-colors">
+                        {cepLoading ? <span className="material-symbols-outlined animate-spin">progress_activity</span> : 'Buscar'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="md:col-span-3">
+                    <label className={labelClass}>Endereço Completo</label>
+                    <input value={clientData.address} onChange={e => setClientData({ ...clientData, address: e.target.value })} className={inputClass} placeholder="Rua, Número, Bairro, Cidade - UF" />
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* DADOS DA CRIANÇA */}
+            {/* DADOS DA CRIANÇA (AGORA SUPORTA MÚLTIPLAS) */}
             <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-lg border border-slate-100 dark:border-slate-800">
-              <h3
-                className="text-slate-600 dark:text-slate-400 font-bold text-sm flex items-center gap-2 mb-3 cursor-pointer"
-                onClick={e => e.currentTarget.nextElementSibling?.classList.toggle('hidden')}
-              >
-                <span className="material-symbols-outlined text-lg">child_care</span>
-                Dados da Criança
-              </h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-slate-600 dark:text-slate-400 font-bold text-sm flex items-center gap-2">
+                  <span className="material-symbols-outlined text-lg">child_care</span>
+                  Dados da(s) Criança(s)
+                </h3>
+                <button type="button" onClick={() => {
+                  setClientData(prev => ({ ...prev, children: [...(prev.children || []), { name: '', cpf: '', birth_date: '' }] }));
+                }} className="text-sm text-primary font-bold">Adicionar Criança</button>
+              </div>
 
-              {/* VISÍVEL POR PADRÃO */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="md:col-span-3">
-                  <label className={labelClass}>Nome</label>
-                  <input value={clientData.child_name} onChange={e => setClientData({ ...clientData, child_name: e.target.value })} className={inputClass} />
-                </div>
+              <div className="space-y-4">
+                {(clientData.children || []).map((child, idx) => (
+                  <div key={idx} className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+                    <div className="md:col-span-3">
+                      <label className={labelClass}>Nome da Criança</label>
+                      <input
+                        placeholder="Nome completo da criança"
+                        value={child.name}
+                        onChange={e => {
+                          const next = [...(clientData.children || [])];
+                          next[idx] = { ...next[idx], name: e.target.value };
+                          const base: any = { children: next };
+                          if (idx === 0) { base.child_name = e.target.value; }
+                          setClientData(prev => ({ ...prev, ...base }));
+                        }}
+                        className={inputClass}
+                      />
+                    </div>
 
-                <div>
-                  <label className={labelClass}>CPF</label>
-                  <input value={clientData.child_cpf} onChange={e => setClientData({ ...clientData, child_cpf: e.target.value })} className={inputClass} />
-                </div>
+                    <div>
+                      <label className={labelClass}>CPF</label>
+                      <input
+                        inputMode="numeric"
+                        pattern="\\d*"
+                        maxLength={11}
+                        placeholder="00000000000"
+                        value={child.cpf}
+                        onChange={e => {
+                          const clean = e.target.value.replace(/\D/g,'').slice(0,11);
+                          const next = [...(clientData.children || [])];
+                          next[idx] = { ...next[idx], cpf: clean };
+                          const base: any = { children: next };
+                          if (idx === 0) { base.child_cpf = clean; }
+                          setClientData(prev => ({ ...prev, ...base }));
+                        }}
+                        className={inputClass}
+                      />
+                    </div>
 
-                <div>
-                  <label className={labelClass}>Data Nasc.</label>
-                  <input type="date" value={clientData.child_birth_date} onChange={e => setClientData({ ...clientData, child_birth_date: e.target.value })} className={inputClass} />
-                </div>
+                    <div>
+                      <label className={labelClass}>Data Nasc.</label>
+                      <input
+                        type="date"
+                        value={child.birth_date}
+                        onChange={e => {
+                          const next = [...(clientData.children || [])];
+                          next[idx] = { ...next[idx], birth_date: e.target.value };
+                          const base: any = { children: next };
+                          if (idx === 0) { base.child_birth_date = e.target.value; }
+                          setClientData(prev => ({ ...prev, ...base }));
+                        }}
+                        className={inputClass}
+                      />
+                    </div>
+
+                    <div className="md:col-span-1 flex gap-2">
+                      { (clientData.children || []).length > 1 && (
+                        <button type="button" onClick={() => {
+                          const next = [...(clientData.children || [])];
+                          next.splice(idx,1);
+                          const first = next[0] || { name: '', cpf: '', birth_date: '' };
+                          setClientData(prev => ({ ...prev, children: next, child_name: first.name, child_cpf: first.cpf, child_birth_date: first.birth_date }));
+                        }} className="px-3 py-2 rounded-lg bg-red-600 text-white">Remover</button>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -468,7 +635,18 @@ const CreateDocument: React.FC = () => {
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div><label className={labelClass}>DER (Data Entrada)</label><input type="date" value={clientData.der} onChange={e => setClientData({ ...clientData, der: e.target.value })} className={inputClass} /></div>
-                  <div><label className={labelClass}>NB</label><input value={clientData.nb} onChange={e => setClientData({ ...clientData, nb: e.target.value })} className={inputClass} /></div>
+                  <div>
+                    <label className={labelClass}>NB</label>
+                    <input
+                      inputMode="numeric"
+                      pattern="\d*"
+                      maxLength={10}
+                      value={clientData.nb}
+                      onChange={e => setClientData({ ...clientData, nb: e.target.value.replace(/\D/g,'').slice(0,10) })}
+                      placeholder="Ex: 1234567890"
+                      className={inputClass}
+                    />
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -498,7 +676,16 @@ const CreateDocument: React.FC = () => {
             <div>
               <h3 className="text-primary font-bold flex items-center gap-2 mb-4 mt-6"><span className="material-symbols-outlined">work_history</span> Histórico e Atividade</h3>
               <div className="space-y-4">
-                <div><label className={labelClass}>Início atividade rural</label><input type="date" value={clientData.rural_start_date} onChange={e => setClientData({ ...clientData, rural_start_date: e.target.value })} className={inputClass} /></div>
+                <div>
+                  <label className={labelClass}>Início atividade rural</label>
+                  <input
+                    type="text"
+                    value={clientData.rural_start_date ?? ''}
+                    onChange={e => setClientData({ ...clientData, rural_start_date: e.target.value })}
+                    className={inputClass}
+                    placeholder="Ex: Janeiro/2015 ou descrição (p.ex. início aos 15 anos)"
+                  />
+                </div>
                 <div><label className={labelClass}>Tarefas desempenhadas</label><textarea rows={3} value={clientData.rural_tasks} onChange={e => setClientData({ ...clientData, rural_tasks: e.target.value })} className={inputClass} placeholder="Atividades diárias..." /></div>
                 <div><label className={labelClass}>Provas disponíveis</label><textarea rows={3} value={clientData.evidence_list} onChange={e => setClientData({ ...clientData, evidence_list: e.target.value })} className={inputClass} placeholder="Notas, certidões..." /></div>
               </div>

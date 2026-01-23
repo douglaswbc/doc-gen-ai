@@ -82,11 +82,16 @@ export interface ClientData {
   rg: string;
   rg_issuer: string;
   address: string;
+  zip_code?: string;
+  city?: string;
+  state?: string;
+  neighborhood?: string;
 
   // Criança
   child_name: string;
   child_cpf: string;
   child_birth_date: string;
+  children?: Array<{ name: string; cpf: string; birth_date: string }>;
 
   // Benefício
   der: string;
