@@ -16,6 +16,7 @@ import ClientDetails from './pages/ClientDetails';
 import AdminAgents from './pages/admin/Agents';
 import AdminUsers from './pages/admin/Users';
 import JurisprudenceAdmin from './pages/admin/Jurisprudence';
+import JurisdictionAdmin from './pages/admin/Jurisdiction';
 import Team from './pages/office/Team';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
@@ -103,6 +104,7 @@ const App: React.FC = () => {
               <Route path="/admin/agents" element={<ProtectedRoute><AdminRoute><AdminAgents /></AdminRoute></ProtectedRoute>} />
               <Route path="/admin/users" element={<ProtectedRoute><AdminRoute><AdminUsers /></AdminRoute></ProtectedRoute>} />
               <Route path="/admin/jurisprudence" element={<ProtectedRoute><AdminRoute><JurisprudenceAdmin /></AdminRoute></ProtectedRoute>} />
+              <Route path="/admin/jurisdiction" element={<ProtectedRoute><AdminRoute><JurisdictionAdmin /></AdminRoute></ProtectedRoute>} />
 
               {/* 404 Redireciona para Home */}
               <Route path="*" element={<Navigate to="/" replace />} />

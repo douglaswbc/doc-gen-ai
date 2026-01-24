@@ -117,6 +117,11 @@ const Navbar: React.FC = () => {
                         <span className="material-symbols-outlined text-sm">gavel</span> Jurisprudência
                       </span>
                     </Link>
+                    <Link to="/admin/jurisdiction" className={`${isActive('/admin/jurisdiction')} !text-purple-600 dark:!text-purple-400 hover:!bg-purple-50 dark:hover:!bg-purple-900/10 ml-1`}>
+                      <span className="flex items-center gap-1">
+                        <span className="material-symbols-outlined text-sm">map</span> Jurisdição
+                      </span>
+                    </Link>
                   </>
                 )}
               </div>
@@ -185,6 +190,9 @@ const Navbar: React.FC = () => {
                   </Link>
                   <Link to="/admin/jurisprudence" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-2 px-3 py-2 text-purple-600 dark:text-purple-400 font-bold rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/10 mt-1">
                     <span className="material-symbols-outlined">gavel</span> Jurisprudência
+                  </Link>
+                  <Link to="/admin/jurisdiction" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-2 px-3 py-2 text-purple-600 dark:text-purple-400 font-bold rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/10 mt-1">
+                    <span className="material-symbols-outlined">map</span> Jurisdição
                   </Link>
                 </div>
               )}

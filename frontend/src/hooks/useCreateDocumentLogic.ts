@@ -58,8 +58,17 @@ export const useCreateDocumentLogic = () => {
                 const { data, error } = await supabase.from('clients').select('*').eq('id', clientId).single();
                 if (error) throw error;
                 if (data) {
-                    // Map DB single child fields into children array for the UI
-                    const children = [{ name: data.child_name || '', cpf: data.child_cpf || '', birth_date: data.child_birth_date || '' }];
+                    // Prefer normalized `children` JSONB column when available
+                    let children = [{ name: data.child_name || '', cpf: data.child_cpf || '', birth_date: data.child_birth_date || '' }];
+                    try {
+                        if (data.children && Array.isArray(data.children) && data.children.length > 0) {
+                            // ensure each child has expected keys
+                            children = data.children.map((c: any) => ({ name: c.name || '', cpf: c.cpf || '', birth_date: c.birth_date || '' }));
+                        }
+                    } catch (e) {
+                        console.warn('Erro ao parsear children JSON:', e);
+                    }
+
                     setClientData(prev => ({ ...prev, ...data, children }));
                 }
             } catch (err) {
