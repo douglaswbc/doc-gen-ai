@@ -17,11 +17,12 @@ export const downloadAsPDF = async (htmlContent: string, filename: string = 'doc
     const container = document.createElement('div');
     container.innerHTML = `
         <style>
-            body { font-family: 'Times New Roman', serif; font-size: 12pt; color: #000; }
-            p { text-align: justify; line-height: 1.5; margin-bottom: 12px; }
-            table { width: 100%; border-collapse: collapse; border: 1px solid black; page-break-inside: avoid; }
-            th, td { border: 1px solid black; padding: 8px; }
-            h2, h3 { margin-top: 20px; }
+            body { font-family: 'Times New Roman', serif; font-size: 12pt; color: #000; background: #fff; }
+            * { color: #000 !important; border-color: #000 !important; }
+            p { text-align: justify; line-height: 1.5; margin-bottom: 12px; color: #000; }
+            table { width: 100%; border-collapse: collapse; border: 1px solid #000; page-break-inside: avoid; color: #000; }
+            th, td { border: 1px solid #000; padding: 8px; color: #000; }
+            h2, h3 { margin-top: 20px; color: #000; }
         </style>
         ${htmlContent}
     `;

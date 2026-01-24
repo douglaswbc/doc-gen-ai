@@ -7,199 +7,157 @@ import { useTheme } from '../context/ThemeContext';
 const Navbar: React.FC = () => {
   const location = useLocation();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  
-  // Extraímos usage, permissions e isAdmin do hook
-  // 'usage' contém os dados unificados (escritório ou pessoal)
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+
   const { profile, isAdmin, permissions, usage } = useProfile();
-  
   const { theme, toggleTheme } = useTheme();
 
   const isActive = (path: string) => {
     const current = location.pathname;
-    
+    const activeStyles = "bg-primary text-white shadow-md shadow-primary/20";
+    const inactiveStyles = "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white";
+
+    const baseClass = "flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all duration-200 group mb-1";
+
     if (path === '/dashboard') {
-      return current === '/dashboard' || current.startsWith('/modules') || current.startsWith('/judicial')
-        ? 'text-primary bg-primary/10 rounded-lg px-3 py-2 font-bold' 
-        : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg font-medium';
+      const active = current === '/dashboard' || current.startsWith('/modules') || current.startsWith('/judicial');
+      return `${baseClass} ${active ? activeStyles : inactiveStyles}`;
     }
 
     if (path === '/my-clients') {
-      return current.startsWith('/my-clients') || current.startsWith('/clients')
-        ? 'text-primary bg-primary/10 rounded-lg px-3 py-2 font-bold'
-        : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg font-medium';
+      const active = current.startsWith('/my-clients') || current.startsWith('/clients');
+      return `${baseClass} ${active ? activeStyles : inactiveStyles}`;
     }
 
-    if (path === '/team') {
-        return current.startsWith('/team')
-          ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg px-3 py-2 font-bold'
-          : 'text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/10 rounded-lg font-medium';
-    }
-
-    return current === path 
-      ? 'text-primary bg-primary/10 rounded-lg px-3 py-2 font-bold' 
-      : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg font-medium';
+    const active = current === path;
+    return `${baseClass} ${active ? activeStyles : inactiveStyles}`;
   };
 
-  const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
+  const NavLink = ({ to, label, icon, activePath }: { to: string, label: string, icon: string, activePath?: string }) => (
+    <Link to={to} className={isActive(activePath || to)} onClick={() => setIsMobileOpen(false)}>
+      <span className="material-symbols-outlined text-xl group-hover:scale-110 transition-transform">{icon}</span>
+      <span className="text-sm tracking-tight">{label}</span>
+    </Link>
+  );
 
   return (
     <>
-      <nav className="w-full bg-white dark:bg-card-dark border-b border-slate-200 dark:border-slate-800 sticky top-0 z-40 transition-colors duration-300">
-        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between">
-            
-            {/* LADO ESQUERDO: Logo e Menu Desktop */}
-            <div className="flex items-center gap-4 md:gap-8">
-              <button 
-                onClick={toggleMobileMenu}
-                className="md:hidden p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                <span className="material-symbols-outlined">
-                  {isMobileMenuOpen ? 'close' : 'menu'}
-                </span>
-              </button>
+      {/* MOBILE HEADER - FIXED AT TOP */}
+      <div className="lg:hidden flex items-center justify-between p-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 fixed top-0 left-0 right-0 z-[60] h-16 transition-colors duration-300">
+        <div className="flex items-center gap-2">
+          <h2 className="text-xl font-black tracking-tighter text-slate-900 dark:text-white">
+            PREV<span className="text-primary">AI</span>
+          </h2>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={toggleTheme}
+            className="p-2 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors"
+            aria-label="Alternar Tema"
+          >
+            <span className="material-symbols-outlined">{theme === 'dark' ? 'light_mode' : 'dark_mode'}</span>
+          </button>
+          <button
+            onClick={() => setIsMobileOpen(true)}
+            className="p-2 text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+            aria-label="Abrir Menu"
+          >
+            <span className="material-symbols-outlined">menu</span>
+          </button>
+        </div>
+      </div>
 
-              <Link to="/dashboard" className="flex items-center gap-2">
-                <img src="/logo-dark.png" alt="Logo" className="h-8 w-auto dark:hidden" onError={(e) => e.currentTarget.style.display = 'none'} />
-                <img src="/logo-white.png" alt="Logo" className="h-8 w-auto hidden dark:block" onError={(e) => e.currentTarget.style.display = 'none'} />
-                <div className="flex items-center gap-2 logo-text-fallback">
-                   <h2 className="text-secondary dark:text-white text-xl font-bold tracking-tight">
-                     PREV<span className="text-primary">AI</span>
-                   </h2>
-                </div>
-              </Link>
-              
-              {/* Menu Desktop */}
-              <div className="hidden md:flex items-center gap-1">
-                <Link to="/dashboard" className={isActive('/dashboard')}>Início</Link>
-                
-                {/* Documentos */}
-                {permissions.canViewDocuments && (
-                    <Link to="/my-documents" className={isActive('/my-documents')}>Documentos</Link>
-                )}
-                
-                {/* Clientes */}
-                {permissions.canManageClients && (
-                    <Link to="/my-clients" className={isActive('/my-clients')}>Clientes</Link>
-                )}
-                
-                {/* Equipe */}
-                {permissions.canManageOffice && (
-                    <Link 
-                        to="/team" 
-                        className={`${isActive('/team')} ml-2 !text-blue-600 dark:!text-blue-400 hover:!bg-blue-50 dark:hover:!bg-blue-900/10`} 
-                        title="Gerenciar Equipe"
-                    >
-                        <span className="flex items-center gap-1">
-                            <span className="material-symbols-outlined text-lg">domain</span>
-                            <span className="hidden lg:inline text-sm font-bold">Equipe</span>
-                        </span>
-                    </Link>
-                )}
+      {/* OVERLAY MOBILE */}
+      {isMobileOpen && (
+        <div
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] lg:hidden animate-in fade-in duration-300"
+          onClick={() => setIsMobileOpen(false)}
+        ></div>
+      )}
 
-                {/* Admin SaaS */}
-                {isAdmin && (
-                  <>
-                    <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-2"></div>
-                    <Link to="/admin/agents" className={`${isActive('/admin/agents')} !text-purple-600 dark:!text-purple-400 hover:!bg-purple-50 dark:hover:!bg-purple-900/10`}>
-                      <span className="flex items-center gap-1">
-                        <span className="material-symbols-outlined text-sm">smart_toy</span> IAs
-                      </span>
-                    </Link>
-                    <Link to="/admin/users" className={`${isActive('/admin/users')} !text-purple-600 dark:!text-purple-400 hover:!bg-purple-50 dark:hover:!bg-purple-900/10 ml-1`}>
-                      <span className="flex items-center gap-1">
-                        <span className="material-symbols-outlined text-sm">group</span> Users
-                      </span>
-                    </Link>
-                    <Link to="/admin/jurisprudence" className={`${isActive('/admin/jurisprudence')} !text-purple-600 dark:!text-purple-400 hover:!bg-purple-50 dark:hover:!bg-purple-900/10 ml-1`}>
-                      <span className="flex items-center gap-1">
-                        <span className="material-symbols-outlined text-sm">gavel</span> Jurisprudência
-                      </span>
-                    </Link>
-                    <Link to="/admin/jurisdiction" className={`${isActive('/admin/jurisdiction')} !text-purple-600 dark:!text-purple-400 hover:!bg-purple-50 dark:hover:!bg-purple-900/10 ml-1`}>
-                      <span className="flex items-center gap-1">
-                        <span className="material-symbols-outlined text-sm">map</span> Jurisdição
-                      </span>
-                    </Link>
-                  </>
-                )}
-              </div>
-            </div>
+      {/* SIDEBAR SIDEBAR */}
+      <aside className={`fixed top-0 left-0 h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 z-[90] transition-all duration-300 ease-in-out transform 
+        ${isMobileOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72'} lg:translate-x-0 lg:w-72 flex flex-col shadow-2xl lg:shadow-none`}>
 
-            {/* LADO DIREITO: Tema e Perfil */}
-            <div className="flex items-center gap-2 md:gap-4">
-              <button onClick={toggleTheme} className="p-2 rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                <span className="material-symbols-outlined">{theme === 'dark' ? 'light_mode' : 'dark_mode'}</span>
-              </button>
-
-              {/* CONTADOR DE DOCUMENTOS (GLOBAL/COMPARTILHADO) */}
-              {usage && usage.plan === 'free' && (
-                <span className="hidden sm:inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700" title="Limite compartilhado do escritório">
-                  {usage.generated}/{usage.limit} docs
-                </span>
-              )}
-              
-              <button 
-                onClick={() => setIsProfileOpen(true)}
-                className="flex items-center gap-2 p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
-              >
-                <div className="size-8 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex items-center justify-center text-slate-500">
-                  {profile?.avatar_url ? (
-                    <img src={profile.avatar_url} alt="User" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="material-symbols-outlined text-lg">person</span>
-                  )}
-                </div>
-              </button>
-            </div>
-          </div>
+        {/* LOGO AREA */}
+        <div className="p-8 pb-4 flex items-center justify-between">
+          <Link to="/dashboard" className="flex items-center gap-2" onClick={() => setIsMobileOpen(false)}>
+            <h2 className="text-2xl font-black tracking-tighter text-slate-900 dark:text-white">
+              PREV<span className="text-primary">AI</span>
+            </h2>
+          </Link>
+          <button onClick={() => setIsMobileOpen(false)} className="lg:hidden text-slate-400 hover:text-slate-600 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+            <span className="material-symbols-outlined">close</span>
+          </button>
         </div>
 
-        {/* MENU MOBILE */}
-        {isMobileMenuOpen && (
-          <div className="md:hidden border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-card-dark animate-in slide-in-from-top-2">
-            <div className="space-y-1 px-4 py-4">
-              <Link to="/dashboard" onClick={() => setIsMobileMenuOpen(false)} className={`block ${isActive('/dashboard')}`}>Início</Link>
-              
-              {permissions.canViewDocuments && (
-                  <Link to="/my-documents" onClick={() => setIsMobileMenuOpen(false)} className={`block ${isActive('/my-documents')}`}>Documentos</Link>
-              )}
-              
-              {permissions.canManageClients && (
-                  <Link to="/my-clients" onClick={() => setIsMobileMenuOpen(false)} className={`block ${isActive('/my-clients')}`}>Clientes</Link>
-              )}
-              
-              {permissions.canManageOffice && (
-                  <Link to="/team" onClick={() => setIsMobileMenuOpen(false)} className={`block ${isActive('/team')}`}>
-                      <span className="flex items-center gap-2">
-                          <span className="material-symbols-outlined">domain</span>
-                          Minha Equipe
-                      </span>
-                  </Link>
-              )}
-              
-              {isAdmin && (
-                <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800">
-                  <p className="text-xs font-bold text-slate-400 uppercase mb-2">Administração</p>
-                  <Link to="/admin/agents" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-2 px-3 py-2 text-purple-600 dark:text-purple-400 font-bold rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/10 mb-1">
-                    <span className="material-symbols-outlined">smart_toy</span> Agentes IA
-                  </Link>
-                  <Link to="/admin/users" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-2 px-3 py-2 text-purple-600 dark:text-purple-400 font-bold rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/10">
-                    <span className="material-symbols-outlined">group</span> Usuários
-                  </Link>
-                  <Link to="/admin/jurisprudence" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-2 px-3 py-2 text-purple-600 dark:text-purple-400 font-bold rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/10 mt-1">
-                    <span className="material-symbols-outlined">gavel</span> Jurisprudência
-                  </Link>
-                  <Link to="/admin/jurisdiction" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-2 px-3 py-2 text-purple-600 dark:text-purple-400 font-bold rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/10 mt-1">
-                    <span className="material-symbols-outlined">map</span> Jurisdição
-                  </Link>
-                </div>
-              )}
-            </div>
+        {/* NAVIGATION CONTENT */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 scrollbar-hide">
+          <div className="mb-8">
+            <p className="px-4 text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4">Principal</p>
+            <NavLink to="/dashboard" label="Início" icon="dashboard" />
+            {permissions.canViewDocuments && <NavLink to="/my-documents" label="Documentos" icon="description" />}
+            {permissions.canManageClients && <NavLink to="/my-clients" label="Clientes" icon="group" />}
           </div>
-        )}
-      </nav>
+
+          <div className="mb-8">
+            <p className="px-4 text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4">Gestão</p>
+            {permissions.canManageOffice && (
+              <NavLink to="/team" label="Minha Equipe" icon="domain" />
+            )}
+          </div>
+
+          {isAdmin && (
+            <div className="mb-8">
+              <p className="px-4 text-[10px] font-extrabold text-purple-600 dark:text-purple-400 uppercase tracking-[0.2em] mb-4">Sistema</p>
+              <NavLink to="/admin/agents" label="Agentes IA" icon="smart_toy" />
+              <NavLink to="/admin/users" label="Usuários" icon="account_circle" />
+              <NavLink to="/admin/jurisprudence" label="Jurisprudência" icon="gavel" />
+              <NavLink to="/admin/jurisdiction" label="Jurisdição" icon="map" />
+            </div>
+          )}
+        </div>
+
+        {/* FOOTER / USER AREA */}
+        <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
+          {usage && usage.plan === 'free' && (
+            <div className="mb-4 p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-700/50">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">CONSUMO</span>
+                <span className="text-[10px] font-bold text-primary">{usage.generated}/{usage.limit}</span>
+              </div>
+              <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all duration-500"
+                  style={{ width: `${Math.min((usage.generated / usage.limit) * 100, 100)}%` }}
+                ></div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between px-2">
+            <button
+              onClick={() => { setIsProfileOpen(true); setIsMobileOpen(false); }}
+              className="flex items-center gap-3 hover:bg-slate-100 dark:hover:bg-slate-800 p-2 rounded-xl transition-all duration-200 flex-1"
+            >
+              <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold overflow-hidden border border-primary/20">
+                {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  profile?.full_name?.substring(0, 1).toUpperCase() || 'U'
+                )}
+              </div>
+              <div className="text-left overflow-hidden">
+                <p className="text-sm font-bold text-slate-900 dark:text-white truncate transition-colors">{profile?.full_name || 'Usuário'}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 capitalize">{profile?.role || 'Advogado'}</p>
+              </div>
+            </button>
+            <button onClick={toggleTheme} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors" title="Mudar Tema">
+              <span className="material-symbols-outlined text-xl">{theme === 'dark' ? 'light_mode' : 'dark_mode'}</span>
+            </button>
+          </div>
+        </div>
+      </aside>
 
       <ProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
     </>

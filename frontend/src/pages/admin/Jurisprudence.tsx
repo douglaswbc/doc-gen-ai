@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useProfile } from '../../hooks/useProfile';
@@ -146,12 +147,12 @@ const JurisprudenceAdmin: React.FC = () => {
   if (profile?.role !== 'admin') return <div>Access denied</div>;
 
   return (
-    <div className="p-8 bg-slate-50 min-h-screen">
+    <div className="p-8 bg-slate-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
       <div className="max-w-7xl mx-auto">
         <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-extrabold text-slate-900 mb-2">Administração de Jurisprudência</h1>
-            <p className="text-slate-500">Cadastre e gerencie decisões judiciais para a base de conhecimento.</p>
+            <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-2">Administração de Jurisprudência</h1>
+            <p className="text-slate-500 dark:text-slate-400">Cadastre e gerencie decisões judiciais para a base de conhecimento.</p>
           </div>
           <button className="bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all shadow-sm" onClick={() => setEditing({ title: '', tags: [] })}>
             <span>+ Nova Jurisprudência</span>
@@ -161,22 +162,22 @@ const JurisprudenceAdmin: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Sidebar Filters */}
           <div className="lg:col-span-1 space-y-6">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-              <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+              <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
                 <span className="w-1.5 h-4 bg-primary rounded-full"></span>
                 Busca & Filtros
               </h3>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase mb-1 tracking-wider">Título ou Palavra-chave</label>
+                  <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-1 tracking-wider">Título ou Palavra-chave</label>
                   <div className="relative">
-                    <input className="w-full pl-3 pr-10 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm" placeholder="Ex: Aposentadoria Especial..." value={q} onChange={e => setQ(e.target.value)} onKeyPress={e => e.key === 'Enter' && fetchList()} />
-                    <button className="absolute right-2 top-1.5 text-slate-400" onClick={fetchList}>
+                    <input className="w-full pl-3 pr-10 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm text-slate-900 dark:text-white" placeholder="Ex: Aposentadoria Especial..." value={q} onChange={e => setQ(e.target.value)} onKeyPress={e => e.key === 'Enter' && fetchList()} />
+                    <button className="absolute right-2 top-1.5 text-slate-400 hover:text-primary transition-colors" onClick={fetchList}>
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                     </button>
                   </div>
                 </div>
-                <button className="w-full py-2 bg-slate-900 text-white rounded-lg font-semibold text-sm hover:bg-slate-800 transition-colors" onClick={fetchList}>Filtrar Base</button>
+                <button className="w-full py-2 bg-slate-900 dark:bg-slate-800 text-white rounded-lg font-semibold text-sm hover:bg-slate-800 dark:hover:bg-slate-700 transition-colors" onClick={fetchList}>Filtrar Base</button>
               </div>
             </div>
 
@@ -199,39 +200,39 @@ const JurisprudenceAdmin: React.FC = () => {
           {/* Records List */}
           <div className="lg:col-span-3">
             {isLoading ? (
-              <div className="flex flex-col items-center justify-center py-20 bg-white rounded-xl border border-dashed border-slate-300">
-                <div className="w-12 h-12 border-4 border-slate-200 border-t-primary rounded-full animate-spin mb-4"></div>
-                <p className="text-slate-500">Consultando precedentes...</p>
+              <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-300 dark:border-slate-800">
+                <div className="w-12 h-12 border-4 border-slate-200 dark:border-slate-800 border-t-primary rounded-full animate-spin mb-4"></div>
+                <p className="text-slate-500 dark:text-slate-400">Consultando precedentes...</p>
               </div>
             ) : (
               <div className="space-y-4">
                 {items.length === 0 ? (
-                  <div className="text-center py-20 bg-white rounded-xl border border-dashed border-slate-300">
-                    <p className="text-slate-400">Nenhuma jurisprudência encontrada para "{q}"</p>
+                  <div className="text-center py-20 bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-300 dark:border-slate-800">
+                    <p className="text-slate-400 dark:text-slate-500">Nenhuma jurisprudência encontrada para "{q}"</p>
                   </div>
                 ) : items.map(item => (
-                  <div key={item.id} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-primary/30 transition-all flex flex-col md:flex-row gap-6 group">
+                  <div key={item.id} className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-primary/30 dark:hover:border-primary/50 transition-all flex flex-col md:flex-row gap-6 group">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <span className="bg-slate-100 text-slate-600 text-[10px] font-extrabold px-2 py-0.5 rounded uppercase tracking-wider">{item.court || 'Sem Tribunal'}</span>
-                        <span className="text-slate-400 text-xs">{item.date ? new Date(item.date).toLocaleDateString('pt-BR') : 'Sem data'}</span>
+                        <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-extrabold px-2 py-0.5 rounded uppercase tracking-wider">{item.court || 'Sem Tribunal'}</span>
+                        <span className="text-slate-400 dark:text-slate-500 text-xs">{item.date ? new Date(item.date).toLocaleDateString('pt-BR') : 'Sem data'}</span>
                       </div>
-                      <h2 className="text-lg font-bold text-slate-900 group-hover:text-primary transition-colors line-clamp-2">{item.title}</h2>
-                      {item.citation && <p className="text-sm font-mono text-slate-500 mt-1 mb-3">{item.citation}</p>}
-                      <p className="text-sm text-slate-600 line-clamp-3 bg-slate-50/50 p-3 rounded-lg border border-slate-100 italic">{item.summary}</p>
+                      <h2 className="text-lg font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors line-clamp-2">{item.title}</h2>
+                      {item.citation && <p className="text-sm font-mono text-slate-500 dark:text-slate-400 mt-1 mb-3">{item.citation}</p>}
+                      <p className="text-sm text-slate-600 dark:text-slate-300 line-clamp-3 bg-slate-50/50 dark:bg-slate-800/40 p-3 rounded-lg border border-slate-100 dark:border-slate-800 italic">{item.summary}</p>
                       <div className="mt-4 flex flex-wrap gap-2">
                         {item.tags?.map((tag, idx) => (
-                          <span key={idx} className="bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-100">{tag}</span>
+                          <span key={idx} className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-100 dark:border-blue-900/50">{tag}</span>
                         ))}
                       </div>
                     </div>
-                    <div className="md:w-px bg-slate-100"></div>
+                    <div className="md:w-px bg-slate-100 dark:bg-slate-800"></div>
                     <div className="flex flex-col justify-around gap-2 min-w-[100px]">
-                      <button className="w-full py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center justify-center gap-2" onClick={() => setEditing(item)}>
+                      <button className="w-full py-2 text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors flex items-center justify-center gap-2" onClick={() => setEditing(item)}>
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                         Editar
                       </button>
-                      <button className="w-full py-2 text-sm font-bold text-red-500 hover:bg-red-50 rounded-lg transition-colors flex items-center justify-center gap-2" onClick={() => handleDelete(item.id)}>
+                      <button className="w-full py-2 text-sm font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center justify-center gap-2" onClick={() => handleDelete(item.id)}>
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                         Remover
                       </button>
@@ -246,13 +247,13 @@ const JurisprudenceAdmin: React.FC = () => {
 
       {editing && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <form onSubmit={handleSave} className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-200">
-            <header className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 rounded-t-2xl">
+          <form onSubmit={handleSave} className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-200 border border-slate-200 dark:border-slate-800">
+            <header className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/40 rounded-t-2xl">
               <div>
-                <h2 className="text-2xl font-extrabold text-slate-900">{editing.id ? 'Editar Precedente' : 'Nova Jurisprudência'}</h2>
-                <p className="text-slate-500 text-sm">Preencha os dados da decisão judicial.</p>
+                <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white">{editing.id ? 'Editar Precedente' : 'Nova Jurisprudência'}</h2>
+                <p className="text-slate-500 dark:text-slate-400 text-sm">Preencha os dados da decisão judicial.</p>
               </div>
-              <button type="button" className="text-slate-400 hover:text-slate-600 p-2" onClick={() => setEditing(null)}>
+              <button type="button" className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-2" onClick={() => setEditing(null)}>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </header>
@@ -260,40 +261,40 @@ const JurisprudenceAdmin: React.FC = () => {
             <div className="flex-1 overflow-y-auto p-8 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Título da Decisão</label>
-                  <input className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 bg-slate-50/30" placeholder="Ex: Aposentadoria por tempo de contribuição - Especial..." value={editing.title} onChange={e => setEditing({ ...editing, title: e.target.value })} required />
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Título da Decisão</label>
+                  <input className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary/20 bg-slate-50/30 dark:bg-slate-800/50 text-slate-900 dark:text-white" placeholder="Ex: Aposentadoria por tempo de contribuição - Especial..." value={editing.title} onChange={e => setEditing({ ...editing, title: e.target.value })} required />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Tribunal / Instância</label>
-                  <input className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 bg-slate-50/30" placeholder="Ex: TRF1, STJ, STF..." value={editing.court || ''} onChange={e => setEditing({ ...editing, court: e.target.value })} />
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Tribunal / Instância</label>
+                  <input className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary/20 bg-slate-50/30 dark:bg-slate-800/50 text-slate-900 dark:text-white" placeholder="Ex: TRF1, STJ, STF..." value={editing.court || ''} onChange={e => setEditing({ ...editing, court: e.target.value })} />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Data da Decisão</label>
-                  <input type="date" className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 bg-slate-50/30" value={editing.date || ''} onChange={e => setEditing({ ...editing, date: e.target.value })} />
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Data da Decisão</label>
+                  <input type="date" className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary/20 bg-slate-50/30 dark:bg-slate-800/50 text-slate-900 dark:text-white" value={editing.date || ''} onChange={e => setEditing({ ...editing, date: e.target.value })} />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Número da Citação / Processo</label>
-                  <input className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 bg-slate-50/30" placeholder="Ex: RE 123456 / SP..." value={editing.citation || ''} onChange={e => setEditing({ ...editing, citation: e.target.value })} />
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Número da Citação / Processo</label>
+                  <input className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary/20 bg-slate-50/30 dark:bg-slate-800/50 text-slate-900 dark:text-white" placeholder="Ex: RE 123456 / SP..." value={editing.citation || ''} onChange={e => setEditing({ ...editing, citation: e.target.value })} />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Tags (separadas por vírgula)</label>
-                  <input className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 bg-slate-50/30" placeholder="Ex: Rural, Especial, CNIS..." value={editing.tags?.join(', ') || ''} onChange={e => setEditing({ ...editing, tags: e.target.value.split(',').map(s => s.trim()).filter(s => s) })} />
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Tags (separadas por vírgula)</label>
+                  <input className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary/20 bg-slate-50/30 dark:bg-slate-800/50 text-slate-900 dark:text-white" placeholder="Ex: Rural, Especial, CNIS..." value={editing.tags?.join(', ') || ''} onChange={e => setEditing({ ...editing, tags: e.target.value.split(',').map(s => s.trim()).filter(s => s) })} />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Ementa / Resumo</label>
-                <textarea className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 bg-slate-50/30 font-serif" rows={4} placeholder="Digite o resumo da decisão aqui..." value={editing.summary || ''} onChange={e => setEditing({ ...editing, summary: e.target.value })}></textarea>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Ementa / Resumo</label>
+                <textarea className="w-full p-4 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary/20 bg-slate-50/30 dark:bg-slate-800/50 text-slate-900 dark:text-white font-serif" rows={4} placeholder="Digite o resumo da decisão aqui..." value={editing.summary || ''} onChange={e => setEditing({ ...editing, summary: e.target.value })}></textarea>
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Texto Íntegra</label>
-                <textarea className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 bg-slate-50/30 font-mono text-sm" rows={8} placeholder="Cole o texto completo da decisão ou fundamentação..." value={editing.full_text || ''} onChange={e => setEditing({ ...editing, full_text: e.target.value })}></textarea>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Texto Íntegra</label>
+                <textarea className="w-full p-4 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary/20 bg-slate-50/30 dark:bg-slate-800/50 text-slate-900 dark:text-white font-mono text-sm" rows={8} placeholder="Cole o texto completo da decisão ou fundamentação..." value={editing.full_text || ''} onChange={e => setEditing({ ...editing, full_text: e.target.value })}></textarea>
               </div>
             </div>
 
-            <footer className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-slate-50/50 rounded-b-2xl">
-              <button type="button" className="px-6 py-2.5 font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors" onClick={() => setEditing(null)}>Cancelar</button>
+            <footer className="p-6 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 bg-slate-50/50 dark:bg-slate-800/40 rounded-b-2xl">
+              <button type="button" className="px-6 py-2.5 font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-xl transition-colors" onClick={() => setEditing(null)}>Cancelar</button>
               <button type="submit" className="px-10 py-2.5 bg-primary text-white font-bold rounded-xl hover:bg-primary/90 transition-all shadow-md">Salvar Decisão</button>
             </footer>
           </form>

@@ -47,16 +47,17 @@ const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
-  // Esconde a Navbar do App nas páginas públicas (Landing, Login, Register)
-  const hideNavbarPaths = ['/', '/login', '/register', '/forgot-password', '/terms', '/privacy'];
-  const showNavbar = !hideNavbarPaths.includes(location.pathname);
+  const hideSidebarPaths = ['/', '/login', '/register', '/forgot-password', '/terms', '/privacy'];
+  const showSidebar = !hideSidebarPaths.includes(location.pathname);
 
   return (
-    <div className="min-h-screen flex flex-col transition-colors duration-300 bg-slate-50 dark:bg-background-dark">
-      {showNavbar && <Navbar />}
-      <main className="flex-grow flex flex-col">
-        {children}
-      </main>
+    <div className="min-h-screen flex transition-colors duration-300 bg-slate-50 dark:bg-background-dark">
+      {showSidebar && <Navbar />}
+      <div className={`flex flex-col flex-1 w-full ${showSidebar ? 'lg:pl-72 pt-16 lg:pt-0' : ''}`}>
+        <main className="flex-grow">
+          {children}
+        </main>
+      </div>
     </div>
   );
 };
@@ -67,21 +68,26 @@ const App: React.FC = () => {
       <AuthProvider>
         <HashRouter>
           <Layout>
-            <ToastContainer position="top-right" autoClose={3000} theme="colored" />
+            <ToastContainer
+              position="top-right"
+              autoClose={3000}
+              theme="colored"
+              aria-label="Notificações do sistema"
+            />
             <Routes>
               {/* ROTA RAIZ AGORA É A LANDING PAGE */}
               <Route path="/" element={<LandingPage />} />
-              
+
               {/* PÁGINAS LEGAIS */}
               <Route path="/terms" element={<Terms />} />
               <Route path="/privacy" element={<Privacy />} />
 
               {/* Login agora é /login */}
               <Route path="/login" element={<Login />} />
-              
+
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
-              
+
               {/* App Protegido */}
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/create-document" element={<ProtectedRoute><CreateDocument /></ProtectedRoute>} />

@@ -7,10 +7,10 @@ import { moneyToWords } from '../numberToWords';
  */
 interface AgentTemplate {
   render: (
-    aiData: any, 
-    clientData: any, 
-    officeData: any, 
-    signers: any[], 
+    aiData: any,
+    clientData: any,
+    officeData: any,
+    signers: any[],
     generatorInfo?: { name: string; id: string }
   ) => string;
 }
@@ -107,7 +107,7 @@ export const template: AgentTemplate = {
     const formatLongDate = (d?: string | Date) => {
       const date = d ? (typeof d === 'string' ? new Date(d) : d) : new Date();
       if (isNaN(date.getTime())) return d || '';
-      const months = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+      const months = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
       return `${date.getDate()} de ${months[date.getMonth()]} de ${date.getFullYear()}`;
     };
 
@@ -159,22 +159,22 @@ export const template: AgentTemplate = {
       <tr>
         <td style="width: 80px; vertical-align: middle; padding-bottom: 10px;">
           ${officeData.logo_url
-            ? `<img src="${officeData.logo_url}" width="70" height="70" style="width: 70px; height: 70px; object-fit: contain;" alt="Logo" />`
-            : `<div style="width: 70px; height: 70px; background: #f0f0f0;"></div>`
-          }
+        ? `<img src="${officeData.logo_url}" width="70" height="70" style="width: 70px; height: 70px; object-fit: contain;" alt="Logo" />`
+        : `<div style="width: 70px; height: 70px; background: #fff; border: 1px solid #000;"></div>`
+      }
         </td>
         <td style="vertical-align: middle; padding-left: 10px; padding-bottom: 10px;">
           <p style="margin: 0; font-size: 16pt; font-weight: bold; text-transform: uppercase; color: #000;">${officeData.name}</p>
-          ${officeData.cnpj ? `<p style="margin: 0; font-size: 9pt; color: #666;">CNPJ: ${officeData.cnpj}</p>` : ''}
+          ${officeData.cnpj ? `<p style="margin: 0; font-size: 9pt; color: #000;">CNPJ: ${officeData.cnpj}</p>` : ''}
           
-          <div style="margin-top: 5px; font-size: 9pt; color: #444;">
+          <div style="margin-top: 5px; font-size: 9pt; color: #000;">
             ${officeData.address ? `<span>${officeData.address}${officeData.city ? `, ${officeData.city}` : ''}${officeData.state ? `-${officeData.state}` : ''}</span><br>` : ''}
             <span>
               ${officeData.phone ? `Tel: ${officeData.phone}` : ''}
               ${officeData.email ? ` | ${officeData.email}` : ''}
             </span>
           </div>
-          ${officeData.slogan ? `<p style="margin: 5px 0 0 0; font-size: 9pt; font-style: italic; color: #666;">"${officeData.slogan}"</p>` : ''}
+          ${officeData.slogan ? `<p style="margin: 5px 0 0 0; font-size: 9pt; font-style: italic; color: #000;">"${officeData.slogan}"</p>` : ''}
         </td>
       </tr>
     </table>
@@ -260,7 +260,7 @@ export const template: AgentTemplate = {
 
         /* Classes utilitárias */
         .data-table td { border: 1px solid #000; padding: 6px 8px; }
-        .bg-gray { background-color: #f0f0f0; font-weight: bold; width: 40%; color: #000; }
+        .bg-gray { background-color: #fff; font-weight: bold; width: 40%; color: #000; }
 
         h1, h2, h3 { color: #000; }
         h2 { text-align: center; font-size: 14pt; margin: 20px 0; font-weight: bold; }
@@ -411,7 +411,7 @@ export const template: AgentTemplate = {
         <div style="margin: 15px 0; border-left: 3px solid #000; padding-left: 10px;">
           <p style="margin: 0; font-weight: bold;">${idx + 1}. ${j.tribunal}</p>
           <p style="margin: 5px 0; font-style: italic;">"${j.ementa}"</p>
-          <p style="margin: 0; font-size: 10pt; color: #555;">${j.referencia}</p>
+          <p style="margin: 0; font-size: 10pt; color: #000;">${j.referencia}</p>
         </div>
       `).join('')}
       ` : ''}
@@ -439,7 +439,7 @@ export const template: AgentTemplate = {
         <tr style="font-weight: bold;"><td colspan="2" style="text-align: right;">TOTAL</td><td>${formatMoney(totalValue)}</td></tr>
       </table>
 
-      <div style="margin-top: 15px; padding: 10px; background: #f9f9f9; border: 1px solid #ddd; font-size: 10pt;">
+      <div style="margin-top: 15px; padding: 10px; background: #fff; border: 1px solid #000; font-size: 10pt;">
         <p style="font-weight: bold; margin: 0 0 5px 0;">METODOLOGIA DE CÁLCULO:</p>
         <p style="margin: 0;">O salário-maternidade rural é calculado com base no valor de 1 (um) salário mínimo vigente no mês de competência (Lei 8.213/91). Benefício de 120 dias.</p>
       </div>
@@ -447,23 +447,23 @@ export const template: AgentTemplate = {
       <div style="margin-top: 60px;">
         <p style="text-align: left;">Termos em que, pede e espera deferimento.</p>
         <p style="text-align: right;">${(() => {
-            const raw = getCityUf();
-            // Format city name properly for closing (Title Case city, uppercase UF when available)
-            const m = raw.match(/^(.+)-([A-Z]{2})$/i);
-            if (m) {
-              const city = m[1].split(/\s+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-              const state = m[2].toUpperCase();
-              return `${city}-${state}, ${formatLongDate(new Date())}.`;
-            }
-            const cityTitle = raw.split(/\s+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-            return `${cityTitle}, ${formatLongDate(new Date())}.`;
-          })()}</p>
+        const raw = getCityUf();
+        // Format city name properly for closing (Title Case city, uppercase UF when available)
+        const m = raw.match(/^(.+)-([A-Z]{2})$/i);
+        if (m) {
+          const city = m[1].split(/\s+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+          const state = m[2].toUpperCase();
+          return `${city}-${state}, ${formatLongDate(new Date())}.`;
+        }
+        const cityTitle = raw.split(/\s+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        return `${cityTitle}, ${formatLongDate(new Date())}.`;
+      })()}</p>
         <div style="margin-top: 20px; display: flex; justify-content: center; gap: 40px; flex-wrap: wrap;">
           ${signersHtml}
         </div>
       </div>
 
-      <div style="margin-top: 40px; padding-top: 15px; border-top: 1px solid #ccc; font-size: 8pt; color: #666; display: flex; justify-content: space-between;">
+      <div style="margin-top: 40px; padding-top: 15px; border-top: 1px solid #000; font-size: 8pt; color: #000; display: flex; justify-content: space-between;">
         <span><b>ID:</b> ${documentId}</span>
         <span><b>Gerado por:</b> ${generatorInfo?.name || 'Sistema'} | ${generatedAt}</span>
       </div>
