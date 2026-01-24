@@ -7,46 +7,147 @@ const apiBase = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL ||
 
 const JurisdictionAdmin: React.FC = () => {
   const { profile, loading } = useProfile();
-  const [tab, setTab] = useState<'sections'|'subsections'|'municipalities'|'maps'>('sections');
+  const [tab, setTab] = useState<'sections' | 'subsections' | 'municipalities' | 'maps'>('sections');
 
   // sections
   const [sections, setSections] = useState<any[]>([]);
-  const [editingSection, setEditingSection] = useState<any|null>(null);
+  const [editingSection, setEditingSection] = useState<any | null>(null);
   const [showSubsections, setShowSubsections] = useState<Record<string, boolean>>({});
 
   // subsections
   const [subsections, setSubsections] = useState<any[]>([]);
-  const [editingSub, setEditingSub] = useState<any|null>(null);
+  const [editingSub, setEditingSub] = useState<any | null>(null);
+  const [showSubMunicipalities, setShowSubMunicipalities] = useState<Record<string, boolean>>({});
 
   // municipalities
   const [municipalities, setMunicipalities] = useState<any[]>([]);
-  const [editingMun, setEditingMun] = useState<any|null>(null);
+  const [editingMun, setEditingMun] = useState<any | null>(null);
 
   // maps
   const [maps, setMaps] = useState<any[]>([]);
-  const [editingMap, setEditingMap] = useState<any|null>(null);
+  const [editingMap, setEditingMap] = useState<any | null>(null);
 
   useEffect(() => { if (!loading) fetchAll(); }, [loading]);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const handleImport = async () => {
-    if (!selectedFile) { toast.warning('Selecione um arquivo CSV ou XLSX'); return; }
+    if (!selectedFile) { toast.warning('Selecione um arquivo CSV'); return; }
     try {
-      const session = await supabase.auth.getSession();
-      const token = session?.data?.session?.access_token;
-      const form = new FormData();
-      form.append('file', selectedFile);
-      const res = await fetch(`${apiBase}/api/jurisdiction/import`, { method: 'POST', body: form, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } });
-      if (!res.ok) {
-        const text = await res.text().catch(() => 'no body');
-        throw new Error(text || 'Import failed');
+      const text = await selectedFile.text();
+      const lines = text.split('\n').filter(l => l.trim());
+      if (lines.length < 2) throw new Error('Arquivo vazio ou inválido');
+
+      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+      const rows = lines.slice(1).map(line => {
+        const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.trim().replace(/"/g, ''));
+        const obj: any = {};
+        headers.forEach((h, i) => { obj[h] = values[i]; });
+        return obj;
+      });
+
+      let inserted = { sections: 0, subsections: 0, municipalities: 0, maps: 0, updated_maps: 0 };
+      toast.info('Iniciando importação...', { autoClose: false, toastId: 'importing' });
+
+      for (const row of rows) {
+        const section_name = row.section || row.Seção;
+        const subsection_name = row.subsection || row.Subseção;
+        const municipality_name = row.municipality || row.Município;
+        const state = row.state || row.UF;
+        const legal_basis = row.legal_basis || row.legal || row.base_legal || row['Base legal'];
+
+        if (!section_name || !subsection_name || !municipality_name || !state) continue;
+
+        // 1. Get or Create Section
+        const { data: secData, error: secErr } = await supabase
+          .from('judicial_sections')
+          .select('id')
+          .ilike('name', section_name.trim())
+          .maybeSingle();
+
+        let section_id = secData?.id;
+        if (!section_id) {
+          const { data: insSec, error: insErr } = await supabase
+            .from('judicial_sections')
+            .insert([{ name: section_name.trim(), code: section_name.trim().substring(0, 6).toUpperCase(), trf: 'TRF' }])
+            .select('id')
+            .single();
+          if (insErr) { console.error('Error inserting section:', insErr); continue; }
+          section_id = insSec.id;
+          inserted.sections++;
+        }
+
+        // 2. Get or Create Subsection
+        const { data: subData, error: subErr } = await supabase
+          .from('judicial_subsections')
+          .select('id')
+          .eq('section_id', section_id)
+          .ilike('name', subsection_name.trim())
+          .maybeSingle();
+
+        let subsection_id = subData?.id;
+        if (!subsection_id) {
+          const { data: insSub, error: insSubErr } = await supabase
+            .from('judicial_subsections')
+            .insert([{ section_id, name: subsection_name.trim(), city: subsection_name.trim(), has_jef: true }])
+            .select('id')
+            .single();
+          if (insSubErr) { console.error('Error inserting subsection:', insSubErr); continue; }
+          subsection_id = insSub.id;
+          inserted.subsections++;
+        }
+
+        // 3. Get or Create Municipality
+        const { data: munData, error: munErr } = await supabase
+          .from('municipalities')
+          .select('id')
+          .eq('state', state.trim())
+          .ilike('name', municipality_name.trim())
+          .maybeSingle();
+
+        let municipality_id = munData?.id;
+        if (!municipality_id) {
+          const { data: insMun, error: insMunErr } = await supabase
+            .from('municipalities')
+            .insert([{ name: municipality_name.trim(), state: state.trim() }])
+            .select('id')
+            .single();
+          if (insMunErr) { console.error('Error inserting municipality:', insMunErr); continue; }
+          municipality_id = insMun.id;
+          inserted.municipalities++;
+        }
+
+        // 4. Upsert Map
+        const { data: mapData, error: mapErr } = await supabase
+          .from('jurisdiction_map')
+          .select('id')
+          .eq('municipality_id', municipality_id)
+          .maybeSingle();
+
+        if (mapData) {
+          const { error: updErr } = await supabase
+            .from('jurisdiction_map')
+            .update({ subsection_id, legal_basis: legal_basis?.trim() })
+            .eq('id', mapData.id);
+          if (!updErr) inserted.updated_maps++;
+        } else {
+          const { error: insErr } = await supabase
+            .from('jurisdiction_map')
+            .insert([{ municipality_id, subsection_id, legal_basis: legal_basis?.trim() }]);
+          if (!insErr) inserted.maps++;
+        }
       }
-      const data = await res.json();
-      toast.success('Importado: ' + JSON.stringify(data.inserted));
+
+      toast.dismiss('importing');
+      toast.success(`Importação finalizada!`);
+      console.log('Resultados:', inserted);
       setSelectedFile(null);
       fetchAll();
-    } catch (err: any) { console.error(err); toast.error('Erro ao importar: ' + (err.message || '')); }
+    } catch (err: any) {
+      toast.dismiss('importing');
+      console.error(err);
+      toast.error('Erro ao importar: ' + (err.message || ''));
+    }
   };
 
   const fetchAll = async () => {
@@ -55,161 +156,392 @@ const JurisdictionAdmin: React.FC = () => {
 
   const fetchSections = async () => {
     try {
-      const res = await fetch(`${apiBase}/api/jurisdiction/sections`);
-      const data = await res.json(); setSections(data||[]);
+      const { data, error } = await supabase
+        .from('judicial_sections')
+        .select('*')
+        .order('name');
+      if (error) throw error;
+      setSections(data || []);
     } catch (e) { console.error(e); toast.error('Erro ao carregar seções'); }
   };
 
   const fetchSubsections = async () => {
-    try { const res = await fetch(`${apiBase}/api/jurisdiction/subsections`); const data = await res.json(); setSubsections(data||[]); } catch (e) { console.error(e); toast.error('Erro ao carregar subseções'); }
+    try {
+      const { data, error } = await supabase
+        .from('judicial_subsections')
+        .select(`
+          *, 
+          section:judicial_sections(id, name, code, trf)
+        `)
+        .order('name');
+      if (error) throw error;
+
+      const mapped = data?.map(item => ({
+        ...item,
+        section: Array.isArray(item.section) ? item.section[0] : item.section
+      })) || [];
+      setSubsections(mapped);
+    } catch (e) { console.error(e); toast.error('Erro ao carregar subseções'); }
   };
 
   const fetchMunicipalities = async () => {
-    try { const res = await fetch(`${apiBase}/api/jurisdiction/municipalities`); const data = await res.json(); setMunicipalities(data||[]); } catch (e) { console.error(e); toast.error('Erro ao carregar municípios'); }
+    try {
+      const { data, error } = await supabase
+        .from('municipalities')
+        .select('*')
+        .order('name');
+      if (error) throw error;
+      setMunicipalities(data || []);
+    } catch (e) { console.error(e); toast.error('Erro ao carregar municípios'); }
   };
 
   const fetchMaps = async () => {
-    try { const res = await fetch(`${apiBase}/api/jurisdiction/maps`); const data = await res.json(); setMaps(data||[]); } catch (e) { console.error(e); toast.error('Erro ao carregar mapa'); }
-  };
+    try {
+      const { data, error } = await supabase
+        .from('jurisdiction_map')
+        .select(`
+          *, 
+          municipality:municipalities(id, name, state), 
+          subsection:judicial_subsections(id, name, city)
+        `)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
 
-  const getToken = async () => {
-    const session = await supabase.auth.getSession();
-    return session?.data?.session?.access_token;
+      const mapped = data?.map(item => ({
+        ...item,
+        municipality: Array.isArray(item.municipality) ? item.municipality[0] : item.municipality,
+        subsection: Array.isArray(item.subsection) ? item.subsection[0] : item.subsection
+      })) || [];
+      setMaps(mapped);
+    } catch (e) { console.error(e); toast.error('Erro ao carregar mapa'); }
   };
 
   const saveSection = async (ev?: React.FormEvent) => {
     ev?.preventDefault(); if (!editingSection) return;
     try {
-      const token = await getToken();
-      const method = editingSection.id ? 'PATCH' : 'POST';
-      const url = editingSection.id ? `${apiBase}/api/jurisdiction/sections/${editingSection.id}` : `${apiBase}/api/jurisdiction/sections`;
-      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json', ...(token?{Authorization:`Bearer ${token}`}:{}) }, body: JSON.stringify(editingSection) });
-      if (!res.ok) throw new Error('Erro');
+      const { id, ...payload } = editingSection;
+      let error;
+      if (id) {
+        ({ error } = await supabase.from('judicial_sections').update(payload).eq('id', id));
+      } else {
+        ({ error } = await supabase.from('judicial_sections').insert([payload]));
+      }
+      if (error) throw error;
       toast.success('Salvo'); setEditingSection(null); fetchSections();
-    } catch (e:any) { console.error(e); toast.error('Erro ao salvar seção: ' + (e.message||'')); }
+    } catch (e: any) { console.error(e); toast.error('Erro ao salvar seção: ' + (e.message || '')); }
   };
 
   const saveSubsection = async (ev?: React.FormEvent) => {
     ev?.preventDefault(); if (!editingSub) return;
-    try { const token = await getToken(); const method = editingSub.id ? 'PATCH' : 'POST'; const url = editingSub.id ? `${apiBase}/api/jurisdiction/subsections/${editingSub.id}` : `${apiBase}/api/jurisdiction/subsections`; const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json', ...(token?{Authorization:`Bearer ${token}`}:{}) }, body: JSON.stringify(editingSub) }); if (!res.ok) throw new Error('Erro'); toast.success('Salvo'); setEditingSub(null); fetchSubsections(); } catch (e:any) { console.error(e); toast.error('Erro ao salvar subseção: ' + (e.message||'')); }
+    try {
+      const { id, section, ...payload } = editingSub;
+      let error;
+      if (id) {
+        ({ error } = await supabase.from('judicial_subsections').update(payload).eq('id', id));
+      } else {
+        ({ error } = await supabase.from('judicial_subsections').insert([payload]));
+      }
+      if (error) throw error;
+      toast.success('Salvo'); setEditingSub(null); fetchSubsections();
+    } catch (e: any) { console.error(e); toast.error('Erro ao salvar subseção: ' + (e.message || '')); }
   };
 
   const saveMunicipality = async (ev?: React.FormEvent) => {
     ev?.preventDefault(); if (!editingMun) return;
-    try { const token = await getToken(); const method = editingMun.id ? 'PATCH' : 'POST'; const url = editingMun.id ? `${apiBase}/api/jurisdiction/municipalities/${editingMun.id}` : `${apiBase}/api/jurisdiction/municipalities`; const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json', ...(token?{Authorization:`Bearer ${token}`}:{}) }, body: JSON.stringify(editingMun) }); if (!res.ok) throw new Error('Erro'); toast.success('Salvo'); setEditingMun(null); fetchMunicipalities(); } catch (e:any) { console.error(e); toast.error('Erro ao salvar município: ' + (e.message||'')); }
+    try {
+      const { id, ...payload } = editingMun;
+      let error;
+      if (id) {
+        ({ error } = await supabase.from('municipalities').update(payload).eq('id', id));
+      } else {
+        ({ error } = await supabase.from('municipalities').insert([payload]));
+      }
+      if (error) throw error;
+      toast.success('Salvo'); setEditingMun(null); fetchMunicipalities();
+    } catch (e: any) { console.error(e); toast.error('Erro ao salvar município: ' + (e.message || '')); }
   };
 
   const saveMap = async (ev?: React.FormEvent) => {
     ev?.preventDefault(); if (!editingMap) return;
-    try { const token = await getToken(); const method = editingMap.id ? 'PATCH' : 'POST'; const url = editingMap.id ? `${apiBase}/api/jurisdiction/maps/${editingMap.id}` : `${apiBase}/api/jurisdiction/maps`; const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json', ...(token?{Authorization:`Bearer ${token}`}:{}) }, body: JSON.stringify(editingMap) }); if (!res.ok) throw new Error('Erro'); toast.success('Salvo'); setEditingMap(null); fetchMaps(); } catch (e:any) { console.error(e); toast.error('Erro ao salvar mapa: ' + (e.message||'')); }
+    try {
+      const { id, municipality, subsection, ...payload } = editingMap;
+      let error;
+      if (id) {
+        ({ error } = await supabase.from('jurisdiction_map').update(payload).eq('id', id));
+      } else {
+        ({ error } = await supabase.from('jurisdiction_map').insert([payload]));
+      }
+      if (error) throw error;
+      toast.success('Salvo'); setEditingMap(null); fetchMaps();
+    } catch (e: any) { console.error(e); toast.error('Erro ao salvar mapa: ' + (e.message || '')); }
   };
 
-  const remove = async (url: string, refresh: () => void) => {
-    if (!confirm('Deseja remover?')) return; try { const token = await getToken(); const res = await fetch(url, { method: 'DELETE', headers: { ...(token?{Authorization:`Bearer ${token}`}:{}) } }); if (!res.ok) throw new Error('Erro'); toast.success('Removido'); refresh(); } catch (e) { console.error(e); toast.error('Erro ao remover'); }
+  const remove = async (table: string, id: string, refresh: () => void) => {
+    if (!confirm('Deseja remover?')) return;
+    try {
+      const { error } = await supabase.from(table).delete().eq('id', id);
+      if (error) throw error;
+      toast.success('Removido'); refresh();
+    } catch (e) { console.error(e); toast.error('Erro ao remover'); }
   };
 
   if (loading) return <div>Carregando...</div>;
   if (profile?.role !== 'admin') return <div>Access denied</div>;
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Administração de Jurisdição</h1>
-      <div className="mb-4 flex gap-2">
-        <button className={`btn ${tab==='sections'?'btn-primary':''}`} onClick={() => setTab('sections')}>Seções</button>
-        <button className={`btn ${tab==='subsections'?'btn-primary':''}`} onClick={() => setTab('subsections')}>Subseções</button>
-        <button className={`btn ${tab==='municipalities'?'btn-primary':''}`} onClick={() => setTab('municipalities')}>Municípios</button>
-        <button className={`btn ${tab==='maps'?'btn-primary':''}`} onClick={() => setTab('maps')}>Relação de Jurisdição</button>
-      </div>
+    <div className="p-8 bg-slate-50 min-h-screen">
+      <div className="max-w-7xl mx-auto">
+        <header className="mb-8">
+          <h1 className="text-3xl font-extrabold text-slate-900 mb-2">Administração de Jurisdição</h1>
+          <p className="text-slate-500">Gerencie seções judiciárias, subseções e a abrangência municipal.</p>
+        </header>
 
-      <div className="mb-6">
-        <label className="block mb-2 font-bold">Importar CSV / XLSX</label>
-        <input type="file" accept=".csv,.xlsx,.xls" onChange={e => setSelectedFile(e.target.files?.[0] ?? null)} />
-        <div className="mt-2 flex gap-2"><button className="btn" onClick={handleImport}>Importar</button></div>
-      </div>
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8">
+          <div className="flex border-b border-slate-200 bg-slate-50/50">
+            <button className={`px-6 py-4 font-semibold text-sm transition-colors border-b-2 ${tab === 'sections' ? 'border-primary text-primary bg-white' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setTab('sections')}>Seções Judiciárias</button>
+            <button className={`px-6 py-4 font-semibold text-sm transition-colors border-b-2 ${tab === 'subsections' ? 'border-primary text-primary bg-white' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setTab('subsections')}>Subseções</button>
+            <button className={`px-6 py-4 font-semibold text-sm transition-colors border-b-2 ${tab === 'municipalities' ? 'border-primary text-primary bg-white' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setTab('municipalities')}>Municípios</button>
+            <button className={`px-6 py-4 font-semibold text-sm transition-colors border-b-2 ${tab === 'maps' ? 'border-primary text-primary bg-white' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setTab('maps')}>Mapa de Jurisdição</button>
+          </div>
 
-      {tab === 'sections' && (
-        <div>
-          <div className="mb-4"><button className="btn" onClick={() => setEditingSection({ name: '', code: '', trf: '' })}>Nova Seção Judiciária</button></div>
-          <table className="w-full table-auto border-collapse border">
-            <thead>
-              <tr className="bg-slate-100">
-                <th className="p-2 border">Seção Judiciária</th>
-                <th className="p-2 border">Código</th>
-                <th className="p-2 border">TRF</th>
-                <th className="p-2 border">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sections.map(s => (
-                <React.Fragment key={s.id}>
-                  <tr className="hover:bg-slate-50">
-                    <td className="p-2 border">{s.name}</td>
-                    <td className="p-2 border">{s.code}</td>
-                    <td className="p-2 border">{s.trf}</td>
-                    <td className="p-2 border">
-                      <button className="mr-2 text-sm" onClick={() => setEditingSection(s)}>Editar</button>
-                      <button className="mr-2 text-sm" onClick={() => setShowSubsections(prev => ({ ...prev, [s.id]: !prev[s.id] }))}>{showSubsections[s.id] ? 'Ocultar Subseções' : 'Ver Subseções'}</button>
-                      <button className="text-sm text-red-600" onClick={() => remove(`${apiBase}/api/jurisdiction/sections/${s.id}`, fetchSections)}>Remover</button>
-                    </td>
-                  </tr>
-                  {showSubsections[s.id] && (
-                    <tr>
-                      <td className="p-2 border bg-slate-50" colSpan={4}>
-                        <div className="mb-2 font-semibold">Subseções</div>
-                        <table className="w-full table-auto border-collapse border">
-                          <thead><tr className="bg-white"><th className="p-1 border">Nome</th><th className="p-1 border">Cidade</th><th className="p-1 border">JEF?</th><th className="p-1 border">Ações</th></tr></thead>
-                          <tbody>
-                            {subsections.filter(ss => (ss.section && ss.section.name ? ss.section.id === s.id : ss.section_id === s.id)).map(ss => (
-                              <tr key={ss.id} className="hover:bg-slate-50"><td className="p-1 border">{ss.name}</td><td className="p-1 border">{ss.city}</td><td className="p-1 border">{ss.has_jef?'Sim':'Não'}</td><td className="p-1 border"><button className="mr-2 text-sm" onClick={()=>setEditingSub(ss)}>Editar</button><button className="text-sm text-red-600" onClick={()=>remove(`${apiBase}/api/jurisdiction/subsections/${ss.id}`, fetchSubsections)}>Remover</button></td></tr>
+          <div className="p-6">
+            <div className="mb-8 p-4 bg-blue-50/50 border border-blue-100 rounded-lg flex items-center justify-between">
+              <div>
+                <h3 className="text-blue-900 font-bold mb-1">Importação de Dados</h3>
+                <p className="text-blue-700 text-sm">Carregue dados oficiais via arquivo CSV para atualização em massa.</p>
+              </div>
+              <div className="flex items-center gap-4">
+                <input type="file" accept=".csv" className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer" onChange={e => setSelectedFile(e.target.files?.[0] ?? null)} />
+                <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-bold text-sm transition-colors shadow-sm" onClick={handleImport}>Processar Arquivo</button>
+              </div>
+            </div>
+
+            {tab === 'sections' && (
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-bold text-slate-800">Seções Judiciárias</h2>
+                  <button className="btn btn-primary" onClick={() => setEditingSection({ name: '', code: '', trf: '' })}>Nova Seção</button>
+                </div>
+                <div className="rounded-lg border border-slate-200 overflow-hidden">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-slate-100 border-b border-slate-200">
+                        <th className="p-4 font-bold text-slate-700 uppercase text-xs tracking-wider">Seção</th>
+                        <th className="p-4 font-bold text-slate-700 uppercase text-xs tracking-wider">Código</th>
+                        <th className="p-4 font-bold text-slate-700 uppercase text-xs tracking-wider">TRF</th>
+                        <th className="p-4 font-bold text-slate-700 uppercase text-xs tracking-wider">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {sections.map(s => (
+                        <React.Fragment key={s.id}>
+                          <tr className="hover:bg-slate-50 transition-colors">
+                            <td className="p-4 font-medium text-slate-900">{s.name}</td>
+                            <td className="p-4 font-mono text-xs">{s.code}</td>
+                            <td className="p-4 font-semibold text-primary">{s.trf}</td>
+                            <td className="p-4">
+                              <div className="flex gap-4">
+                                <button className="text-sm text-slate-600 hover:text-primary transition-colors" onClick={() => setEditingSection(s)}>Editar</button>
+                                <button className="text-sm text-slate-600 hover:text-primary transition-colors" onClick={() => setShowSubsections(prev => ({ ...prev, [s.id]: !prev[s.id] }))}>{showSubsections[s.id] ? 'Recolher' : 'Ver Subseções'}</button>
+                                <button className="text-sm text-red-600 hover:text-red-800 transition-colors" onClick={() => remove('judicial_sections', s.id, fetchSections)}>Remover</button>
+                              </div>
+                            </td>
+                          </tr>
+                          {showSubsections[s.id] && (
+                            <tr className="bg-slate-50/50">
+                              <td className="p-4" colSpan={4}>
+                                <div className="ml-4 p-4 bg-white rounded-lg border border-slate-200 shadow-sm">
+                                  <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                    <span className="w-1 h-4 bg-primary rounded-full"></span>
+                                    Subseções de {s.name}
+                                  </h4>
+                                  <table className="w-full text-sm">
+                                    <thead>
+                                      <tr className="text-slate-500 border-b border-slate-100">
+                                        <th className="pb-2 text-left">Nome</th>
+                                        <th className="pb-2 text-left">Cidade</th>
+                                        <th className="pb-2 text-center">JEF</th>
+                                        <th className="pb-2 text-right">Ações</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                      {subsections.filter(ss => ss.section_id === s.id).map(ss => (
+                                        <tr key={ss.id} className="group">
+                                          <td className="py-2 font-medium">{ss.name}</td>
+                                          <td className="py-2 text-slate-600">{ss.city}</td>
+                                          <td className="py-2 text-center">
+                                            {ss.has_jef ? <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded-full font-bold">SIM</span> : <span className="text-slate-300">Não</span>}
+                                          </td>
+                                          <td className="py-2 text-right opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button className="text-xs text-slate-600 mr-2" onClick={() => setEditingSub(ss)}>Editar</button>
+                                            <button className="text-xs text-red-600" onClick={() => remove('judicial_subsections', ss.id, fetchSubsections)}>Remover</button>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                      {subsections.filter(ss => ss.section_id === s.id).length === 0 && (
+                                        <tr><td colSpan={4} className="py-4 text-center text-slate-400 italic">Nenhuma subseção cadastrada.</td></tr>
+                                      )}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {tab === 'subsections' && (
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-bold text-slate-800">Subseções e Abrangência</h2>
+                  <button className="btn btn-primary" onClick={() => setEditingSub({ section_id: sections[0]?.id || '', name: '', city: '', has_jef: true })}>Nova Subseção</button>
+                </div>
+                <div className="space-y-4">
+                  {subsections.map(s => (
+                    <div key={s.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden group shadow-sm hover:shadow-md transition-all">
+                      <div className="p-4 flex items-center justify-between bg-white border-b border-slate-50">
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary font-bold">{s.name.substring(0, 1)}</div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-bold text-slate-900">{s.name}</h3>
+                              {s.has_jef && <span className="text-[10px] font-extrabold bg-blue-100 text-blue-700 px-2 py-0.5 rounded tracking-tighter">JUIZADO ESPECIAL FEDERAL</span>}
+                            </div>
+                            <p className="text-xs text-slate-500">Sede: {s.city} • {s.section?.name || 'Seção não vinculada'}</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-4">
+                          <button className="text-sm font-semibold text-primary hover:underline" onClick={() => setShowSubMunicipalities(prev => ({ ...prev, [s.id]: !prev[s.id] }))}>
+                            {showSubMunicipalities[s.id] ? 'Ocultar Abrangência' : 'Ver Municípios Atendidos'}
+                          </button>
+                          <div className="h-4 w-px bg-slate-200"></div>
+                          <button className="text-sm text-slate-400 hover:text-slate-600" onClick={() => setEditingSub(s)}>Editar</button>
+                          <button className="text-sm text-red-400 hover:text-red-600" onClick={() => remove('judicial_subsections', s.id, fetchSubsections)}>Remover</button>
+                        </div>
+                      </div>
+                      {showSubMunicipalities[s.id] && (
+                        <div className="p-6 bg-slate-50/50">
+                          <div className="flex items-center gap-2 mb-4">
+                            <h4 className="text-sm font-bold text-slate-700 uppercase tracking-widest">Municípios em Jurisdição</h4>
+                            <div className="h-px flex-1 bg-slate-200"></div>
+                            <span className="text-xs font-mono text-slate-400">{maps.filter(m => m.subsection_id === s.id).length} cidades</span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                            {maps.filter(m => m.subsection_id === s.id).map(m => (
+                              <div key={m.id} className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex flex-col group/item hover:border-primary/30 transition-colors">
+                                <span className="font-bold text-slate-800">{m.municipality?.name}</span>
+                                <span className="text-[10px] font-bold text-slate-400 mb-2">{m.municipality?.state}</span>
+                                {m.legal_basis && (
+                                  <div className="mt-auto pt-2 border-t border-slate-100">
+                                    <p className="text-[9px] text-slate-400 line-clamp-2 italic" title={m.legal_basis}>{m.legal_basis}</p>
+                                  </div>
+                                )}
+                              </div>
                             ))}
-                          </tbody>
-                        </table>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                            {maps.filter(m => m.subsection_id === s.id).length === 0 && (
+                              <div className="col-span-full py-8 text-center bg-white rounded-lg border border-dashed border-slate-300">
+                                <p className="text-slate-400 text-sm">Nenhum município mapeado para esta subseção.</p>
+                                <button className="mt-2 text-xs text-primary font-bold hover:underline" onClick={() => setTab('maps')}>Vincular municípios agora</button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-      {tab === 'subsections' && (
-        <div>
-          <div className="mb-4"><button className="btn" onClick={() => setEditingSub({ section_id: sections[0]?.id||'', name: '', city: '', has_jef: true })}>Nova Subseção</button></div>
-          <table className="w-full table-auto border-collapse border"><thead><tr className="bg-slate-100"><th className="p-2 border">Nome</th><th className="p-2 border">Cidade</th><th className="p-2 border">Seção</th><th className="p-2 border">JEF?</th><th className="p-2 border">Ações</th></tr></thead><tbody>{subsections.map(s=> (<tr key={s.id} className="hover:bg-slate-50"><td className="p-2 border">{s.name}</td><td className="p-2 border">{s.city}</td><td className="p-2 border">{(s.section && s.section.name) ? s.section.name : (sections.find(sec=>sec.id===s.section_id)?.name||s.section_id)}</td><td className="p-2 border">{s.has_jef?'Sim':'Não'}</td><td className="p-2 border"><button className="mr-2 text-sm" onClick={()=>setEditingSub(s)}>Editar</button><button className="text-sm text-red-600" onClick={()=>remove(`${apiBase}/api/jurisdiction/subsections/${s.id}`, fetchSubsections)}>Remover</button></td></tr>))}</tbody></table>
-        </div>
-      )}
+            {tab === 'municipalities' && (
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-bold text-slate-800">Cadastro de Municípios</h2>
+                  <button className="btn btn-primary" onClick={() => setEditingMun({ name: '', state: '', ibge_code: '' })}>Novo Município</button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {municipalities.map(m => (
+                    <div key={m.id} className="p-4 bg-white border border-slate-200 rounded-lg flex items-center justify-between group">
+                      <div>
+                        <h3 className="font-bold text-slate-900">{m.name}</h3>
+                        <p className="text-xs text-slate-500">{m.state} {m.ibge_code ? `• Código IBGE: ${m.ibge_code}` : ''}</p>
+                      </div>
+                      <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button className="p-1 hover:bg-slate-100 rounded" onClick={() => setEditingMun(m)}>Editar</button>
+                        <button className="p-1 hover:bg-red-50 text-red-500 rounded" onClick={() => remove('municipalities', m.id, fetchMunicipalities)}>Remover</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-      {tab === 'municipalities' && (
-        <div>
-          <div className="mb-4"><button className="btn" onClick={() => setEditingMun({ name: '', state: '', ibge_code: '' })}>Novo Município</button></div>
-          <table className="w-full table-auto border-collapse border"><thead><tr className="bg-slate-100"><th className="p-2 border">Nome</th><th className="p-2 border">UF</th><th className="p-2 border">IBGE</th><th className="p-2 border">Ações</th></tr></thead><tbody>{municipalities.map(m=> (<tr key={m.id} className="hover:bg-slate-50"><td className="p-2 border">{m.name}</td><td className="p-2 border">{m.state}</td><td className="p-2 border">{m.ibge_code}</td><td className="p-2 border"><button className="mr-2 text-sm" onClick={()=>setEditingMun(m)}>Editar</button><button className="text-sm text-red-600" onClick={()=>remove(`${apiBase}/api/jurisdiction/municipalities/${m.id}`, fetchMunicipalities)}>Remover</button></td></tr>))}</tbody></table>
+            {tab === 'maps' && (
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-bold text-slate-800">Relação de Jurisdição</h2>
+                  <button className="btn btn-primary" onClick={() => setEditingMap({ municipality_id: municipalities[0]?.id || '', subsection_id: subsections[0]?.id || '', legal_basis: '' })}>Novo Vínculo</button>
+                </div>
+                <div className="rounded-lg border border-slate-200 overflow-hidden">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-slate-100 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-600 font-bold">
+                        <th className="p-4">Município</th>
+                        <th className="p-4 text-center">UF</th>
+                        <th className="p-4">Subseção Competente</th>
+                        <th className="p-4">Base Legal</th>
+                        <th className="p-4 text-right">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 divide-y divide-slate-100">
+                      {maps.map(m => (
+                        <tr key={m.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="p-4 font-bold text-slate-900">{m.municipality?.name}</td>
+                          <td className="p-4 text-center font-bold text-slate-400">{m.municipality?.state}</td>
+                          <td className="p-4">
+                            <div className="flex flex-col">
+                              <span className="font-medium text-slate-700">{m.subsection?.name}</span>
+                              <span className="text-[10px] text-slate-400">Cidade: {m.subsection?.city}</span>
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <span className="text-xs text-slate-500 line-clamp-1 italic max-w-xs" title={m.legal_basis}>{m.legal_basis || '—'}</span>
+                          </td>
+                          <td className="p-4 text-right">
+                            <button className="text-xs font-bold text-primary mr-3" onClick={() => setEditingMap({ ...m, municipality_id: m.municipality_id, subsection_id: m.subsection_id })}>Editar</button>
+                            <button className="text-xs font-bold text-red-500" onClick={() => remove('jurisdiction_map', m.id, fetchMaps)}>Desvincular</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      )}
-
-      {tab === 'maps' && (
-        <div>
-          <div className="mb-4"><button className="btn" onClick={() => setEditingMap({ municipality_id: municipalities[0]?.id||'', subsection_id: subsections[0]?.id||'', legal_basis: '' })}>Novo Mapeamento (Município → Subseção)</button></div>
-          <table className="w-full table-auto border-collapse border"><thead><tr className="bg-slate-100"><th className="p-2 border">Município</th><th className="p-2 border">UF</th><th className="p-2 border">Subseção</th><th className="p-2 border">Cidade</th><th className="p-2 border">Base legal</th><th className="p-2 border">Ações</th></tr></thead><tbody>{maps.map(m=> (<tr key={m.id} className="hover:bg-slate-50"><td className="p-2 border">{m.municipality?.name}</td><td className="p-2 border">{m.municipality?.state}</td><td className="p-2 border">{m.subsection?.name}</td><td className="p-2 border">{m.subsection?.city}</td><td className="p-2 border">{m.legal_basis}</td><td className="p-2 border"><button className="mr-2 text-sm" onClick={()=>setEditingMap({ ...m, municipality_id: m.municipality?.id, subsection_id: m.subsection?.id })}>Editar</button><button className="text-sm text-red-600" onClick={()=>remove(`${apiBase}/api/jurisdiction/maps/${m.id}`, fetchMaps)}>Remover</button></td></tr>))}</tbody></table>
-        </div>
-      )}
+      </div>
 
       {/* Modals */}
       {editingSection && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center"><form onSubmit={saveSection} className="bg-white p-6 rounded shadow w-96"><h2 className="font-bold mb-2">Seção</h2><label className="block">Nome<input className="w-full p-2 border" value={editingSection.name} onChange={e=>setEditingSection({...editingSection, name: e.target.value})} /></label><label className="block">Código<input className="w-full p-2 border" value={editingSection.code} onChange={e=>setEditingSection({...editingSection, code: e.target.value})} /></label><label className="block">TRF<input className="w-full p-2 border" value={editingSection.trf} onChange={e=>setEditingSection({...editingSection, trf: e.target.value})} /></label><div className="mt-4 flex justify-end gap-2"><button type="button" className="btn" onClick={()=>setEditingSection(null)}>Cancelar</button><button type="submit" className="btn btn-primary">Salvar</button></div></form></div>
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center"><form onSubmit={saveSection} className="bg-white p-6 rounded shadow w-96"><h2 className="font-bold mb-2">Seção</h2><label className="block">Nome<input className="w-full p-2 border" value={editingSection.name} onChange={e => setEditingSection({ ...editingSection, name: e.target.value })} /></label><label className="block">Código<input className="w-full p-2 border" value={editingSection.code} onChange={e => setEditingSection({ ...editingSection, code: e.target.value })} /></label><label className="block">TRF<input className="w-full p-2 border" value={editingSection.trf} onChange={e => setEditingSection({ ...editingSection, trf: e.target.value })} /></label><div className="mt-4 flex justify-end gap-2"><button type="button" className="btn" onClick={() => setEditingSection(null)}>Cancelar</button><button type="submit" className="btn btn-primary">Salvar</button></div></form></div>
       )}
 
       {editingSub && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center"><form onSubmit={saveSubsection} className="bg-white p-6 rounded shadow w-96"><h2 className="font-bold mb-2">Subseção</h2><label className="block">Seção<select className="w-full p-2 border" value={editingSub.section_id} onChange={e=>setEditingSub({...editingSub, section_id: e.target.value})}>{sections.map(s=> <option key={s.id} value={s.id}>{s.name}</option>)}</select></label><label className="block">Nome<input className="w-full p-2 border" value={editingSub.name} onChange={e=>setEditingSub({...editingSub, name: e.target.value})} /></label><label className="block">Cidade<input className="w-full p-2 border" value={editingSub.city} onChange={e=>setEditingSub({...editingSub, city: e.target.value})} /></label><label className="block">Possui JEF<select className="w-full p-2 border" value={editingSub.has_jef? '1':'0'} onChange={e=>setEditingSub({...editingSub, has_jef: e.target.value==='1'})}><option value="1">Sim</option><option value="0">Não</option></select></label><div className="mt-4 flex justify-end gap-2"><button type="button" className="btn" onClick={()=>setEditingSub(null)}>Cancelar</button><button type="submit" className="btn btn-primary">Salvar</button></div></form></div>
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center"><form onSubmit={saveSubsection} className="bg-white p-6 rounded shadow w-96"><h2 className="font-bold mb-2">Subseção</h2><label className="block">Seção<select className="w-full p-2 border" value={editingSub.section_id} onChange={e => setEditingSub({ ...editingSub, section_id: e.target.value })}>{sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label><label className="block">Nome<input className="w-full p-2 border" value={editingSub.name} onChange={e => setEditingSub({ ...editingSub, name: e.target.value })} /></label><label className="block">Cidade<input className="w-full p-2 border" value={editingSub.city} onChange={e => setEditingSub({ ...editingSub, city: e.target.value })} /></label><label className="block">Possui JEF<select className="w-full p-2 border" value={editingSub.has_jef ? '1' : '0'} onChange={e => setEditingSub({ ...editingSub, has_jef: e.target.value === '1' })}><option value="1">Sim</option><option value="0">Não</option></select></label><div className="mt-4 flex justify-end gap-2"><button type="button" className="btn" onClick={() => setEditingSub(null)}>Cancelar</button><button type="submit" className="btn btn-primary">Salvar</button></div></form></div>
       )}
 
       {editingMun && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center"><form onSubmit={saveMunicipality} className="bg-white p-6 rounded shadow w-96"><h2 className="font-bold mb-2">Município</h2><label className="block">Nome<input className="w-full p-2 border" value={editingMun.name} onChange={e=>setEditingMun({...editingMun, name: e.target.value})} /></label><label className="block">UF<input className="w-full p-2 border" value={editingMun.state} onChange={e=>setEditingMun({...editingMun, state: e.target.value})} /></label><label className="block">IBGE<input className="w-full p-2 border" value={editingMun.ibge_code||''} onChange={e=>setEditingMun({...editingMun, ibge_code: e.target.value})} /></label><div className="mt-4 flex justify-end gap-2"><button type="button" className="btn" onClick={()=>setEditingMun(null)}>Cancelar</button><button type="submit" className="btn btn-primary">Salvar</button></div></form></div>
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center"><form onSubmit={saveMunicipality} className="bg-white p-6 rounded shadow w-96"><h2 className="font-bold mb-2">Município</h2><label className="block">Nome<input className="w-full p-2 border" value={editingMun.name} onChange={e => setEditingMun({ ...editingMun, name: e.target.value })} /></label><label className="block">UF<input className="w-full p-2 border" value={editingMun.state} onChange={e => setEditingMun({ ...editingMun, state: e.target.value })} /></label><label className="block">IBGE<input className="w-full p-2 border" value={editingMun.ibge_code || ''} onChange={e => setEditingMun({ ...editingMun, ibge_code: e.target.value })} /></label><div className="mt-4 flex justify-end gap-2"><button type="button" className="btn" onClick={() => setEditingMun(null)}>Cancelar</button><button type="submit" className="btn btn-primary">Salvar</button></div></form></div>
       )}
 
       {editingMap && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center"><form onSubmit={saveMap} className="bg-white p-6 rounded shadow w-96"><h2 className="font-bold mb-2">Mapeamento</h2><label className="block">Município<select className="w-full p-2 border" value={editingMap.municipality_id} onChange={e=>setEditingMap({...editingMap, municipality_id: e.target.value})}>{municipalities.map(m=> <option key={m.id} value={m.id}>{m.name} - {m.state}</option>)}</select></label><label className="block">Subseção<select className="w-full p-2 border" value={editingMap.subsection_id} onChange={e=>setEditingMap({...editingMap, subsection_id: e.target.value})}>{subsections.map(s=> <option key={s.id} value={s.id}>{s.name} - {s.city}</option>)}</select></label><label className="block">Base legal<textarea className="w-full p-2 border" value={editingMap.legal_basis} onChange={e=>setEditingMap({...editingMap, legal_basis: e.target.value})}></textarea></label><div className="mt-4 flex justify-end gap-2"><button type="button" className="btn" onClick={()=>setEditingMap(null)}>Cancelar</button><button type="submit" className="btn btn-primary">Salvar</button></div></form></div>
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center"><form onSubmit={saveMap} className="bg-white p-6 rounded shadow w-96"><h2 className="font-bold mb-2">Mapeamento</h2><label className="block">Município<select className="w-full p-2 border" value={editingMap.municipality_id} onChange={e => setEditingMap({ ...editingMap, municipality_id: e.target.value })}>{municipalities.map(m => <option key={m.id} value={m.id}>{m.name} - {m.state}</option>)}</select></label><label className="block">Subseção<select className="w-full p-2 border" value={editingMap.subsection_id} onChange={e => setEditingMap({ ...editingMap, subsection_id: e.target.value })}>{subsections.map(s => <option key={s.id} value={s.id}>{s.name} - {s.city}</option>)}</select></label><label className="block">Base legal<textarea className="w-full p-2 border" value={editingMap.legal_basis} onChange={e => setEditingMap({ ...editingMap, legal_basis: e.target.value })}></textarea></label><div className="mt-4 flex justify-end gap-2"><button type="button" className="btn" onClick={() => setEditingMap(null)}>Cancelar</button><button type="submit" className="btn btn-primary">Salvar</button></div></form></div>
       )}
 
     </div>
