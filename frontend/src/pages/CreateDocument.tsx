@@ -8,7 +8,8 @@ import { downloadAsPDF, downloadAsWord, sanitizeFilename } from '../utils/docume
 import { maskCPF, maskNB, maskCEP, unmask } from '../utils/masks';
 import Stepper from '../components/Stepper';
 import { useAutoSave } from '../hooks/useAutoSave';
-import { template as maternityTemplate } from '../utils/templates/salarioMaternidade';
+// Importando o seletor de templates dinâmico
+import { getTemplate } from '../utils/templates';
 
 const CreateDocument: React.FC = () => {
   const navigate = useNavigate();
@@ -225,12 +226,7 @@ const CreateDocument: React.FC = () => {
       generated_by: user.id,
       generated_by_name: profile?.full_name || user.email || 'Usuário',
       generated_by_oab: primarySigner?.oab || profile?.oab || null,
-      generated_at: new Date().toISOString(),
-      // Dados de endereço para persistência facilitada se a tabela clients for atualizada
-      zip_code: clientData.zip_code,
-      city: clientData.city,
-      state: clientData.state,
-      neighborhood: clientData.neighborhood
+      generated_at: new Date().toISOString()
     });
     if (error) toast.error('Erro ao salvar documento.');
     else { toast.success('Documento salvo!'); navigate(`/clients/${savedClient.id}`); }
@@ -873,7 +869,7 @@ const CreateDocument: React.FC = () => {
                       className="prose prose-slate max-w-none dark:prose-invert font-serif bg-white dark:bg-slate-900 p-8 sm:p-16 shadow-xl rounded-sm mx-auto"
                       style={{ maxWidth: '800px' }}
                       dangerouslySetInnerHTML={{
-                        __html: maternityTemplate.render(
+                        __html: getTemplate(initialAgentTitle).render(
                           { // Fake AI Data for preview
                             resumo_fatos: '<p>[Aguardando geração da IA para a narrativa completa dos fatos...]</p>',
                             prioridades: { idoso: false, deficiente: false, menor: true },

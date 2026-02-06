@@ -8,7 +8,8 @@ import { useAgents } from './useAgents';
 import { ClientData, Signer } from '../types';
 
 // Importando o template do local correto (utils)
-import { template as salarioMaternidadeTemplate } from '../utils/templates/salarioMaternidade';
+// Importando o seletor de templates dinâmico
+import { getTemplate } from '../utils/templates';
 
 export const useCreateDocumentLogic = () => {
     const { user } = useAuth();
@@ -255,8 +256,11 @@ export const useCreateDocumentLogic = () => {
                         aiResponse.jurisdiction = jurisdiction;
                     }
 
+                    // Busca o template dinamicamente com base no nome do agente
+                    const dynamicTemplate = getTemplate(agentName);
+
                     // Renderiza o template com os dados vindos do Python e jurisdição estruturada
-                    const finalHtml = salarioMaternidadeTemplate.render(
+                    const finalHtml = dynamicTemplate.render(
                         aiResponse,
                         clientData,
                         profile?.office,
