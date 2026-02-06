@@ -13,6 +13,7 @@ load_dotenv()
 class AgentState(TypedDict):
     input_text: str
     doc_type: str
+    system_instruction: Optional[str] # Novo campo para o prompt do banco
     final_output: Optional[PeticaoAIOutput]
 
 def writer_node(state: AgentState):
@@ -36,8 +37,10 @@ def writer_node(state: AgentState):
     llm = ChatOpenAI(model="gpt-4-turbo", temperature=0.2, openai_api_key=api_key)
     structured_llm = llm.with_structured_output(PeticaoAIOutput)
 
-    prompt = ChatPromptTemplate.from_messages([
-           ("system", """Você é um advogado previdenciário sênior com redação impecável. 
+    # Usa a instrução do banco se existir, senão usa o fallback padrão
+    system_prompt = state.get("system_instruction")
+    if not system_prompt or system_prompt.strip() == "":
+        system_prompt = """Você é um advogado previdenciário sênior com redação impecável. 
            Sua tarefa é:
            1. Corrigir o português e normalizar a escrita (nomes devem começar com maiúsculas, remover gírias, corrigir erros de digitação).
            2. Se encontrar erros nos campos originais, retorne-os na lista 'correcoes' (ex: [{{"original": "pedro", "correto": "Pedro" }}]).
@@ -45,7 +48,10 @@ def writer_node(state: AgentState):
            4. Redigir o 'resumo_fatos' de forma profissional e persuasiva.
            5. Estruturar os 'dados_tecnicos' e 'lista_provas' conforme os argumentos fornecidos.
            
-           IMPORTANTE: O tom deve ser formal, técnico e livre de erros. Use terminologia jurídica correta."""),
+           IMPORTANTE: O tom deve ser formal, técnico e livre de erros. Use terminologia jurídica correta."""
+
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
         ("human", "Ação: {doc_type}\nDados: {input_text}")
     ])
 

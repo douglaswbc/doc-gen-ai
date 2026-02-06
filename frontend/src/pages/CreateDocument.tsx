@@ -199,7 +199,7 @@ const CreateDocument: React.FC = () => {
     if (!selectedAgent && agents.length > 0) selectedAgent = agents[0];
     if (!selectedAgent) { toast.error('Erro: Nenhum agente de IA encontrado.'); return; }
 
-    await generate(selectedAgent.name, docType, clientData.name, formatPromptDetails(), aiProvider, selectedAgent.system_instruction);
+    await generate(selectedAgent.name, selectedAgent.slug, docType, clientData.name, formatPromptDetails(), aiProvider, selectedAgent.system_instruction);
     await incrementUsage();
     fetchProfile();
   };

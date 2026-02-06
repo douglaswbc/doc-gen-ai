@@ -37,6 +37,7 @@ class ClientData(BaseModel):
 
 class GenerateRequest(BaseModel):
     agentName: str
+    agentSlug: str # Novo campo para identificação robusta
     docType: str
     clientName: str
     details: str

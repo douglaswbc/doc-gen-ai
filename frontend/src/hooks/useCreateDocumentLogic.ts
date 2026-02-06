@@ -207,6 +207,7 @@ export const useCreateDocumentLogic = () => {
 
     const generate = async (
         agentName: string,
+        agentSlug: string,
         docType: string,
         clientName: string,
         details: string,
@@ -228,7 +229,8 @@ export const useCreateDocumentLogic = () => {
 
             // Chamada Unificada ao Backend
             const aiResponse = await docGen.generate(
-                agentName || 'salario_maternidade',
+                agentName,
+                agentSlug,
                 docType,
                 clientName,
                 details,

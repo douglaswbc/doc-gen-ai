@@ -5,6 +5,7 @@ import { toast } from 'react-toastify';
 export interface Agent {
   id: string;
   name: string;
+  slug: string; // Adicionado para identificação robusta
   description: string;
   sphere: string;
   system_instruction: string;
@@ -23,7 +24,7 @@ export const useAgents = (onlyActive = true) => {
         .from('ai_agents')
         .select('*')
         .order('name');
-      
+
       if (onlyActive) {
         query = query.eq('is_active', true);
       }

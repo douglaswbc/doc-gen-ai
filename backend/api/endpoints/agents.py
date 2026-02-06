@@ -68,6 +68,17 @@ async def generate_document(
         valor_extenso = get_valor_extenso(valor_total)
 
         # 3. INTELIGÊNCIA ARTIFICIAL (LangGraph)
+        print(f"🤖 Buscando instruções para o agente slug: '{request.agentSlug}'")
+        
+        # Busca a system_instruction do agente no banco pelo slug (mais robusto)
+        agent_res = supabase.table('ai_agents').select('system_instruction').eq('slug', request.agentSlug).execute()
+        system_instruction = None
+        if agent_res.data and len(agent_res.data) > 0:
+            system_instruction = agent_res.data[0].get('system_instruction')
+            print(f"✅ Instrução personalizada encontrada para {request.agentName}")
+        else:
+            print(f"⚠️ Aviso: Agente '{request.agentName}' não encontrado ou sem instrução. Usando fallback.")
+
         print("🤖 Gerando texto jurídico...")
         contexto = f"""
         Cliente: {request.clientName}
@@ -79,7 +90,8 @@ async def generate_document(
         
         result = await app_graph.ainvoke({
             "input_text": contexto,
-            "doc_type": request.docType
+            "doc_type": request.docType,
+            "system_instruction": system_instruction
         })
         
         ai_data = result["final_output"]

@@ -11,15 +11,16 @@ export const useDocumentGenerator = () => {
 
   // Função genérica para chamar o Backend Python
   const generate = async (
-    agentName: string,      // Ex: 'salario_maternidade'
-    docType: string, 
-    clientName: string, 
+    agentName: string,      // Ex: 'Salário Maternidade - Agricultora'
+    agentSlug: string,      // Ex: 'salario-maternidade-agricultora'
+    docType: string,
+    clientName: string,
     details: string,
     provider: string = 'openai',
     systemInstruction: string,
     clientData: any         // Objeto completo do cliente
   ) => {
-    
+
     setIsGenerating(true);
 
     try {
@@ -46,14 +47,15 @@ export const useDocumentGenerator = () => {
         },
         body: JSON.stringify({
           agentName,
+          agentSlug,
           docType,
           clientName,
           details,
           systemInstruction,
           clientData: {
-             ...clientData,
-             name: clientName, // Garante que o nome atualizado vai
-             details: details  // Garante que o relato atualizado vai
+            ...clientData,
+            name: clientName, // Garante que o nome atualizado vai
+            details: details  // Garante que o relato atualizado vai
           }
         })
       });
@@ -65,7 +67,7 @@ export const useDocumentGenerator = () => {
 
       // 3. Recebe o JSON estruturado do Python
       const result = await response.json();
-      
+
       // 4. Registra estatística de uso no Supabase
       if (user) {
         await supabase.rpc('increment_documents_generated', { user_uuid: user.id });
@@ -73,7 +75,7 @@ export const useDocumentGenerator = () => {
 
       toast.success('Documento gerado com inteligência artificial!');
       setIsGenerating(false);
-      
+
       return result; // Retorna o JSON para o hook pai renderizar o template
 
     } catch (err) {
