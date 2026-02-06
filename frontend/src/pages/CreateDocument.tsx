@@ -865,9 +865,14 @@ const CreateDocument: React.FC = () => {
                   </div>
 
                   <div className="flex-1 overflow-y-auto border border-slate-100 dark:border-slate-800 p-8 sm:p-12 bg-slate-50 dark:bg-slate-900/50 rounded-lg custom-scrollbar">
+                    <div className="mt-2 text-center text-[10px] text-slate-400 italic mb-4">
+                      Documento editável para ajustes rápidos.
+                    </div>
                     <div
-                      className="prose prose-slate max-w-none dark:prose-invert font-serif bg-white dark:bg-slate-900 p-8 sm:p-16 shadow-xl rounded-sm mx-auto"
+                      className="prose prose-slate max-w-none dark:prose-invert font-serif bg-white dark:bg-slate-900 p-8 sm:p-16 shadow-xl rounded-sm mx-auto outline-none border-2 border-transparent focus:border-primary/20 transition-all"
                       style={{ maxWidth: '800px' }}
+                      contentEditable
+                      suppressContentEditableWarning
                       dangerouslySetInnerHTML={{
                         __html: getTemplate(initialAgentTitle).render(
                           { // Fake AI Data for preview
@@ -979,8 +984,15 @@ const CreateDocument: React.FC = () => {
             </div>
 
             <div className="flex-1 p-12 overflow-y-auto custom-scrollbar bg-white text-slate-900">
+              <div className="mb-4 flex items-center gap-2 text-xs text-slate-400 border-b border-slate-100 pb-2">
+                <span className="material-symbols-outlined text-sm">edit_note</span>
+                Modo Edição Ativado: Clique no texto para realizar ajustes manuais finais.
+              </div>
               <article
-                className="prose prose-lg max-w-none font-sans prose-p:text-justify prose-p:leading-relaxed"
+                className="prose prose-lg max-w-none font-sans prose-p:text-justify prose-p:leading-relaxed outline-none border-2 border-transparent focus:border-primary/10 p-4 rounded-lg transition-all"
+                contentEditable
+                suppressContentEditableWarning
+                onBlur={(e) => setGeneratedContent(e.currentTarget.innerHTML)}
                 dangerouslySetInnerHTML={{ __html: generatedContent }}
               />
               <style>{`

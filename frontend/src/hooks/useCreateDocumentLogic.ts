@@ -135,7 +135,12 @@ export const useCreateDocumentLogic = () => {
                     let children = [{ name: data.child_name || '', cpf: data.child_cpf || '', birth_date: data.child_birth_date || '' }];
                     try {
                         if (data.children && Array.isArray(data.children) && data.children.length > 0) {
-                            children = data.children.map((c: any) => ({ name: c.name || '', cpf: c.cpf || '', birth_date: c.birth_date || '' }));
+                            children = data.children.map((c: any) => ({
+                                name: c.name || '',
+                                cpf: c.cpf || '',
+                                birth_date: c.birth_date || '',
+                                benefits: c.benefits || [{ der: '', nb: '', benefit_status: 'indeferido', denied_date: '', decision_reason: '' }]
+                            }));
                         }
                     } catch (e) {
                         console.warn('Erro ao parsear children JSON:', e);
@@ -186,7 +191,12 @@ export const useCreateDocumentLogic = () => {
                 if (clientData.children && Array.isArray(clientData.children) && clientData.children.length > 0) {
                     const sessionRes = await supabase.auth.getSession();
                     const token = sessionRes?.data?.session?.access_token;
-                    const childrenBody = clientData.children.map((c: any) => ({ name: c.name || null, cpf: c.cpf || null, birth_date: c.birth_date || null }));
+                    const childrenBody = clientData.children.map((c: any) => ({
+                        name: c.name || null,
+                        cpf: c.cpf || null,
+                        birth_date: c.birth_date || null,
+                        benefits: c.benefits || []
+                    }));
                     const apiBase = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || 'http://localhost:8000';
                     await fetch(`${apiBase}/api/clients/${data.id}/children`, {
                         method: 'POST',
