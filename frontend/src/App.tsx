@@ -15,6 +15,7 @@ import MyClients from './pages/MyClients';
 import ClientDetails from './pages/ClientDetails';
 import AdminAgents from './pages/admin/Agents';
 import AdminUsers from './pages/admin/Users';
+import AdminPlans from './pages/admin/Plans';
 import JurisprudenceAdmin from './pages/admin/Jurisprudence';
 import JurisdictionAdmin from './pages/admin/Jurisdiction';
 import Team from './pages/office/Team';
@@ -109,6 +110,7 @@ const App: React.FC = () => {
               {/* Admin */}
               <Route path="/admin/agents" element={<ProtectedRoute><AdminRoute><AdminAgents /></AdminRoute></ProtectedRoute>} />
               <Route path="/admin/users" element={<ProtectedRoute><AdminRoute><AdminUsers /></AdminRoute></ProtectedRoute>} />
+              <Route path="/admin/plans" element={<ProtectedRoute><AdminRoute><AdminPlans /></AdminRoute></ProtectedRoute>} />
               <Route path="/admin/jurisprudence" element={<ProtectedRoute><AdminRoute><JurisprudenceAdmin /></AdminRoute></ProtectedRoute>} />
               <Route path="/admin/jurisdiction" element={<ProtectedRoute><AdminRoute><JurisdictionAdmin /></AdminRoute></ProtectedRoute>} />
 

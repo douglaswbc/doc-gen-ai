@@ -113,6 +113,7 @@ const Navbar: React.FC = () => {
             <div className="mb-8">
               <p className="px-4 text-[10px] font-extrabold text-purple-600 dark:text-purple-400 uppercase tracking-[0.2em] mb-4">Sistema</p>
               <NavLink to="/admin/agents" label="Agentes IA" icon="smart_toy" />
+              <NavLink to="/admin/plans" label="Planos & Preços" icon="payments" />
               <NavLink to="/admin/users" label="Usuários" icon="account_circle" />
               <NavLink to="/admin/jurisprudence" label="Jurisprudência" icon="gavel" />
               <NavLink to="/admin/jurisdiction" label="Jurisdição" icon="map" />
@@ -131,7 +132,7 @@ const Navbar: React.FC = () => {
               <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden mb-3">
                 <div
                   className="h-full bg-primary transition-all duration-500"
-                  style={{ width: `${Math.min((usage.generated / usage.limit) * 100, 100)}%` }}
+                  style={{ width: `${Math.min(((usage?.generated || 0) / (usage?.limit || 1)) * 100, 100)}%` }}
                 ></div>
               </div>
               <button
