@@ -14,7 +14,7 @@ import { getTemplate } from '../utils/templates';
 export const useCreateDocumentLogic = () => {
     const { user } = useAuth();
     const [searchParams] = useSearchParams();
-    const { profile, fetchProfile, isLimitReached, incrementUsage } = useProfile();
+    const { profile, fetchProfile, isLimitReached, incrementUsage, usage } = useProfile();
     const { agents } = useAgents(true);
 
     const docGen = useDocumentGenerator();
