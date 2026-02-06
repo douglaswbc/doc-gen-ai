@@ -25,7 +25,7 @@ export const useProfile = () => {
           *,
           office:offices (
             id, name, address, phone, website,
-            plan, documents_limit, documents_generated,
+            plan, documents_limit, documents_generated, plan_status,
             cnpj, email, logo_url, secondary_phone,
             city, state, zip_code, slogan, footer_text, header_color
           )
@@ -52,7 +52,7 @@ export const useProfile = () => {
     fetchProfile();
   }, [user]);
 
-  const { usage, isLimitReached, incrementUsage } = useUsageStats(profile, fetchProfile);
+  const { usage, isLimitReached, incrementUsage } = useUsageStats(profile, fetchProfile, setProfile);
 
   const role = profile?.role as UserRole;
 

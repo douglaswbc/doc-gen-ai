@@ -68,11 +68,6 @@ export const useDocumentGenerator = () => {
       // 3. Recebe o JSON estruturado do Python
       const result = await response.json();
 
-      // 4. Registra estatística de uso no Supabase
-      if (user) {
-        await supabase.rpc('increment_documents_generated', { user_uuid: user.id });
-      }
-
       toast.success('Documento gerado com inteligência artificial!');
       setIsGenerating(false);
 

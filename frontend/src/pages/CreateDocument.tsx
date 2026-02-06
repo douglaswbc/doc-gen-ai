@@ -11,10 +11,12 @@ import { useAutoSave } from '../hooks/useAutoSave';
 // Importando o seletor de templates dinâmico
 import { getTemplate } from '../utils/templates';
 
+import UpgradeModal from '../components/UpgradeModal';
+
 const CreateDocument: React.FC = () => {
   const navigate = useNavigate();
   const {
-    user, profile, agents, generatedContent, isGenerating, progress, progressStatus,
+    user, profile, agents, usage, generatedContent, isGenerating, progress, progressStatus,
     signers, setSigners, selectedSignerIds, setSelectedSignerIds,
     isSignerDropdownOpen, setIsSignerDropdownOpen,
     clientData, setClientData, suggestions, showSuggestions, setShowSuggestions, isSearching,
@@ -24,6 +26,7 @@ const CreateDocument: React.FC = () => {
     setGeneratedContent, jurisdiction, fetchJurisdiction
   } = useCreateDocumentLogic();
 
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const viewerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -192,7 +195,10 @@ const CreateDocument: React.FC = () => {
 
 
   const handleGenerate = async () => {
-    if (isLimitReached) { toast.error('Limite do plano atingido.'); return; }
+    if (isLimitReached) {
+      setShowUpgradeModal(true);
+      return;
+    }
     if (selectedSignerIds.length === 0) { toast.warning('Selecione pelo menos um advogado para assinar.'); return; }
     let selectedAgent = agents.find(a => a.name === initialAgentTitle);
     if (!selectedAgent && sphereParam) selectedAgent = agents.find(a => a.sphere.toLowerCase() === sphereParam.toLowerCase());
@@ -200,8 +206,6 @@ const CreateDocument: React.FC = () => {
     if (!selectedAgent) { toast.error('Erro: Nenhum agente de IA encontrado.'); return; }
 
     await generate(selectedAgent.name, selectedAgent.slug, docType, clientData.name, formatPromptDetails(), aiProvider, selectedAgent.system_instruction);
-    await incrementUsage();
-    fetchProfile();
   };
 
   const handleSaveDocument = async () => {
@@ -812,7 +816,12 @@ const CreateDocument: React.FC = () => {
                       </button>
                     ) : (
                       isLimitReached ? (
-                        <a href={MERCADO_PAGO_LINK} target="_blank" rel="noreferrer" className="flex items-center justify-center w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all hover:-translate-y-1"><span className="material-symbols-outlined mr-2">rocket_launch</span> Fazer Upgrade</a>
+                        <button
+                          onClick={() => setShowUpgradeModal(true)}
+                          className="flex items-center justify-center w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all hover:-translate-y-1"
+                        >
+                          <span className="material-symbols-outlined mr-2">rocket_launch</span> Fazer Upgrade
+                        </button>
                       ) : (
                         <button
                           onClick={() => {
@@ -1001,6 +1010,12 @@ const CreateDocument: React.FC = () => {
             </div>
           </div>
         )}
+        {/* === UPGRADE MODAL === */}
+        <UpgradeModal
+          isOpen={showUpgradeModal}
+          onClose={() => setShowUpgradeModal(false)}
+          usage={usage}
+        />
       </div>
     </>
   );

@@ -240,6 +240,10 @@ export const useCreateDocumentLogic = () => {
             );
 
             if (aiResponse) {
+                // BRECHA FECHADA: Debita o crédito assim que a IA terminou o trabalho, 
+                // idependente se o usuário vai clicar em "Salvar" depois ou não.
+                await incrementUsage();
+
                 setProgress(80);
                 setProgressStatus('Formatando documento final...');
 
@@ -326,7 +330,7 @@ export const useCreateDocumentLogic = () => {
     }, [tasksParam]);
 
     return {
-        user, profile, agents,
+        user, profile, agents, usage,
         generatedContent: docGen.generatedContent,
         isGenerating: isGenerating,
         progress, progressStatus,

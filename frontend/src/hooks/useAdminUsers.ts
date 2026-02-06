@@ -14,7 +14,10 @@ export const useAdminUsers = () => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select(`
+          *,
+          office:offices (*)
+        `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -31,44 +34,52 @@ export const useAdminUsers = () => {
     fetchUsers();
   }, []);
 
-  // Alterar Status (Ativar/Suspender)
-  const toggleUserStatus = async (id: string, currentStatus: string) => {
-    // 🔒 PROTEÇÃO: Não permite suspender a si mesmo
-    if (currentUser?.id === id) {
-      toast.warn("Segurança: Você não pode suspender sua própria conta.");
+  // Alterar Status do Escritório (Ativar/Suspender o plano do escritório todo)
+  const toggleUserStatus = async (id: string, currentStatus: string, officeId?: string) => {
+    if (!officeId) {
+      toast.error("Este usuário não está vinculado a um escritório.");
       return;
     }
 
     const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
     try {
       const { error } = await supabase
-        .from('profiles')
+        .from('offices')
         .update({ plan_status: newStatus })
-        .eq('id', id);
+        .eq('id', officeId);
 
       if (error) throw error;
-      
-      toast.success(`Usuário ${newStatus === 'active' ? 'ativado' : 'suspenso'}!`);
-      setUsers(users.map(u => u.id === id ? { ...u, plan_status: newStatus } : u));
+
+      toast.success(`Escritório ${newStatus === 'active' ? 'ativado' : 'suspenso'}!`);
+      // Atualiza localmente todos os usuários daquele escritório
+      setUsers(users.map(u => u.office_id === officeId ? {
+        ...u,
+        office: u.office ? { ...u.office, plan_status: newStatus } : null,
+        plan_status: newStatus // Mantém paridade visual
+      } : u));
     } catch (error) {
-      toast.error('Erro ao alterar status.');
+      toast.error('Erro ao alterar status do escritório.');
     }
   };
 
-  // Alterar Limite de Documentos
-  const updateUserLimit = async (id: string, newLimit: number) => {
+  // Alterar Limite de Documentos do Escritório
+  const updateUserLimit = async (officeId: string, newLimit: number) => {
     try {
       const { error } = await supabase
-        .from('profiles')
+        .from('offices')
         .update({ documents_limit: newLimit })
-        .eq('id', id);
+        .eq('id', officeId);
 
       if (error) throw error;
-      
-      toast.success('Limite atualizado com sucesso!');
-      setUsers(users.map(u => u.id === id ? { ...u, documents_limit: newLimit } : u));
+
+      toast.success('Limite do escritório atualizado!');
+      setUsers(users.map(u => u.office_id === officeId ? {
+        ...u,
+        office: u.office ? { ...u.office, documents_limit: newLimit } : null,
+        documents_limit: newLimit // Mantém paridade visual
+      } : u));
     } catch (error) {
-      toast.error('Erro ao atualizar limite.');
+      toast.error('Erro ao atualizar limite do escritório.');
     }
   };
 
@@ -101,14 +112,14 @@ export const useAdminUsers = () => {
       toast.error("Segurança: Você não pode excluir seu próprio perfil enquanto está logado.");
       return;
     }
-    
+
     // Confirmação dupla para evitar acidentes
     if (!window.confirm("⚠️ ATENÇÃO: Isso excluirá PERMANENTEMENTE o perfil do usuário e revogará o acesso imediatamente.\n\nDeseja continuar?")) return;
-    
+
     try {
       const { error } = await supabase.from('profiles').delete().eq('id', id);
       if (error) throw error;
-      
+
       toast.success('Perfil excluído com sucesso.');
       // Remove o usuário da lista local para atualizar a tela sem recarregar
       setUsers(users.filter(u => u.id !== id));

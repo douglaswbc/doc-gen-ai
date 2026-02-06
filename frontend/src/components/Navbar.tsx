@@ -3,11 +3,13 @@ import { Link, useLocation } from 'react-router-dom';
 import ProfileModal from './ProfileModal';
 import { useProfile } from '../hooks/useProfile';
 import { useTheme } from '../context/ThemeContext';
+import UpgradeModal from './UpgradeModal';
 
 const Navbar: React.FC = () => {
   const location = useLocation();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const { profile, isAdmin, permissions, usage } = useProfile();
   const { theme, toggleTheme } = useTheme();
@@ -126,12 +128,19 @@ const Navbar: React.FC = () => {
                 <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">CONSUMO</span>
                 <span className="text-[10px] font-bold text-primary">{usage.generated}/{usage.limit}</span>
               </div>
-              <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+              <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden mb-3">
                 <div
                   className="h-full bg-primary transition-all duration-500"
                   style={{ width: `${Math.min((usage.generated / usage.limit) * 100, 100)}%` }}
                 ></div>
               </div>
+              <button
+                onClick={() => setShowUpgradeModal(true)}
+                className="w-full py-2 bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-black rounded-lg transition-colors flex items-center justify-center gap-1 uppercase tracking-wider"
+              >
+                <span className="material-symbols-outlined text-xs">rocket_launch</span>
+                Fazer Upgrade
+              </button>
             </div>
           )}
 
@@ -160,6 +169,13 @@ const Navbar: React.FC = () => {
       </aside>
 
       <ProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
+
+      {/* === UPGRADE MODAL === */}
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        usage={usage}
+      />
     </>
   );
 };

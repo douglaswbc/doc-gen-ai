@@ -1,34 +1,51 @@
 import { supabase } from '../lib/supabase';
 import { Profile } from '../types';
 
-export const useUsageStats = (profile: Profile | null, fetchProfile: () => void) => {
+export const useUsageStats = (
+    profile: Profile | null,
+    fetchProfile: () => void,
+    setProfile?: React.Dispatch<React.SetStateAction<Profile | null>>
+) => {
+    // Agora o plano e créditos residem exclusivamente no Escritório (Office)
     const usage = {
-        plan: profile?.office?.plan || profile?.plan || 'free',
-        generated: profile?.office?.documents_generated || profile?.documents_generated || 0,
-        limit: profile?.office?.documents_limit || profile?.documents_limit || 5,
+        plan: profile?.office?.plan || 'free',
+        generated: profile?.office?.documents_generated || 0,
+        limit: profile?.office?.documents_limit || 5,
     };
 
     const isLimitReached = usage.generated >= usage.limit;
 
     const incrementUsage = async () => {
-        if (!profile) return;
+        if (!profile || !profile.office_id) {
+            console.warn("Usuário sem escritório vinculado. Créditos não computados.");
+            return;
+        }
 
         try {
-            if (profile.office_id) {
-                const { error } = await supabase.rpc('increment_document_count', {
-                    target_office_id: profile.office_id
+            // Sempre incrementa no escritório, independentemente de quem gerou (Sócio, Advogado ou Assistente)
+            const { error } = await supabase.rpc('increment_document_count', {
+                target_office_id: profile.office_id
+            });
+
+            if (error) throw error;
+
+            // ATUALIZAÇÃO OTIMISTA: Sincroniza a UI localmente ANTES de esperar o fetch do banco
+            if (setProfile) {
+                setProfile(prev => {
+                    if (!prev || !prev.office) return prev;
+                    return {
+                        ...prev,
+                        office: {
+                            ...prev.office,
+                            documents_generated: (prev.office.documents_generated || 0) + 1
+                        }
+                    };
                 });
-                if (error) throw error;
-            } else {
-                const { error } = await supabase
-                    .from('profiles')
-                    .update({ documents_generated: (profile.documents_generated || 0) + 1 })
-                    .eq('id', profile.id);
-                if (error) throw error;
             }
+
             fetchProfile();
         } catch (error) {
-            console.error("Erro ao computar uso:", error);
+            console.error("Erro ao computar uso no escritório:", error);
         }
     };
 

@@ -46,12 +46,20 @@ const AdminUsers: React.FC = () => {
     );
   }, [users]);
 
-  // Estatísticas gerais
+  // Estatísticas gerais baseadas em escritórios
   const stats = useMemo(() => {
     const offices = officeGroups.length;
     const totalUsers = users.filter(u => u.role !== 'admin').length;
-    const activeUsers = users.filter(u => u.plan_status === 'active' && u.role !== 'admin').length;
-    const totalDocs = users.reduce((sum, u) => sum + (u.documents_generated || 0), 0);
+    // Usuários ativos são aqueles cujos escritórios estão ativos
+    const activeUsers = users.filter(u => u.office?.plan_status === 'active' && u.role !== 'admin').length;
+
+    // Total de documentos agora é a soma dos gerados por cada escritório (único)
+    const uniqueOffices = Array.from(new Set(users.map(u => u.office_id).filter(Boolean)));
+    const totalDocs = uniqueOffices.reduce((sum, oid) => {
+      const u = users.find(user => user.office_id === oid);
+      return sum + (u?.office?.documents_generated || 0);
+    }, 0);
+
     return { offices, totalUsers, activeUsers, totalDocs };
   }, [users, officeGroups]);
 
@@ -69,17 +77,17 @@ const AdminUsers: React.FC = () => {
     setTempLimit(currentLimit);
   };
 
-  const saveLimit = (id: string) => {
-    updateUserLimit(id, tempLimit);
+  const saveLimit = (officeId: string) => {
+    updateUserLimit(officeId, tempLimit);
     setEditingId(null);
   };
 
   const getRoleBadge = (role: string) => {
     const badges: Record<string, { label: string; color: string }> = {
       'office': { label: 'Dono', color: 'bg-primary/10 text-primary border-primary/20' },
-      'lawyer': { label: 'Advogado', color: 'bg-blue-100 text-blue-700 border-blue-200' },
-      'intern': { label: 'Estagiário', color: 'bg-amber-100 text-amber-700 border-amber-200' },
-      'secretary': { label: 'Secretária', color: 'bg-pink-100 text-pink-700 border-pink-200' },
+      'advocate': { label: 'Advogado', color: 'bg-blue-100 text-blue-700 border-blue-200' },
+      'trainee': { label: 'Estagiário', color: 'bg-amber-100 text-amber-700 border-amber-200' },
+      'assistant': { label: 'Assistente', color: 'bg-pink-100 text-pink-700 border-pink-200' },
       'admin': { label: 'Admin', color: 'bg-purple-100 text-purple-700 border-purple-200' },
     };
     const badge = badges[role] || { label: role, color: 'bg-slate-100 text-slate-600 border-slate-200' };
@@ -101,7 +109,7 @@ const AdminUsers: React.FC = () => {
               <span className="material-symbols-outlined text-sm">arrow_back</span> Voltar
             </button>
             <h1 className="text-3xl font-black text-slate-900 dark:text-white">Gestão de Escritórios</h1>
-            <p className="text-slate-500">Gerencie escritórios, usuários e limites de geração.</p>
+            <p className="text-slate-500">Gerencie planos e limites centralizados por escritório.</p>
           </div>
         </div>
 
@@ -112,15 +120,15 @@ const AdminUsers: React.FC = () => {
             <p className="text-2xl font-black text-slate-900 dark:text-white">{stats.offices}</p>
           </div>
           <div className="bg-white dark:bg-card-dark p-4 rounded-xl border border-slate-200 dark:border-slate-800">
-            <p className="text-xs font-bold text-slate-500 uppercase">Usuários</p>
+            <p className="text-xs font-bold text-slate-500 uppercase">Usuários Totais</p>
             <p className="text-2xl font-black text-slate-900 dark:text-white">{stats.totalUsers}</p>
           </div>
           <div className="bg-white dark:bg-card-dark p-4 rounded-xl border border-slate-200 dark:border-slate-800">
-            <p className="text-xs font-bold text-slate-500 uppercase">Ativos</p>
+            <p className="text-xs font-bold text-slate-500 uppercase">Contas Ativas</p>
             <p className="text-2xl font-black text-green-600">{stats.activeUsers}</p>
           </div>
           <div className="bg-white dark:bg-card-dark p-4 rounded-xl border border-slate-200 dark:border-slate-800">
-            <p className="text-xs font-bold text-slate-500 uppercase">Docs Gerados</p>
+            <p className="text-xs font-bold text-slate-500 uppercase">Total Docs (Escritórios)</p>
             <p className="text-2xl font-black text-primary">{stats.totalDocs}</p>
           </div>
         </div>
@@ -139,6 +147,7 @@ const AdminUsers: React.FC = () => {
             {officeGroups.map(([officeId, group]) => {
               const isExpanded = expandedOffices.has(officeId);
               const totalMembers = group.members.length + 1; // +1 para o dono
+              const officeData = group.owner?.office;
 
               return (
                 <div key={officeId} className="bg-white dark:bg-[#161b22] rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
@@ -153,21 +162,21 @@ const AdminUsers: React.FC = () => {
                         <span className="material-symbols-outlined">business</span>
                       </div>
                       <div>
-                        <h3 className="font-bold text-slate-900 dark:text-white text-lg">{group.office?.name || 'Escritório sem nome'}</h3>
+                        <h3 className="font-bold text-slate-900 dark:text-white text-lg">{officeData?.name || 'Escritório sem nome'}</h3>
                         <div className="flex items-center gap-3 text-xs text-slate-500 mt-0.5">
                           <span className="flex items-center gap-1">
-                            <span className="material-symbols-outlined text-sm">person</span>
+                            <span className="material-symbols-outlined text-sm">group</span>
                             {totalMembers} membro{totalMembers > 1 ? 's' : ''}
                           </span>
                           <span className="flex items-center gap-1">
                             <span className="material-symbols-outlined text-sm">description</span>
-                            {group.owner?.documents_generated || 0} docs
+                            {officeData?.documents_generated || 0} / {officeData?.documents_limit || 0} total
                           </span>
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${group.owner?.plan_status === 'active'
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700'
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${officeData?.plan_status === 'active'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-red-100 text-red-700'
                             }`}>
-                            {group.owner?.plan === 'trial' ? 'Trial' : group.owner?.plan || 'Free'}
+                            {officeData?.plan === 'trial' ? 'Trial' : officeData?.plan || 'Free'}
                           </span>
                         </div>
                       </div>
@@ -180,6 +189,61 @@ const AdminUsers: React.FC = () => {
                   {/* Conteúdo Expandido */}
                   {isExpanded && (
                     <div className="p-4 animate-in slide-in-from-top-2 duration-200">
+
+                      {/* Gestão do Plano do Escritório */}
+                      <div className="mb-6 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-800">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                          <div>
+                            <p className="text-xs font-bold text-slate-400 uppercase mb-1">Assinatura do Escritório</p>
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg font-black text-slate-900 dark:text-white">Plano {officeData?.plan?.toUpperCase()}</span>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${officeData?.plan_status === 'active' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                                {officeData?.plan_status === 'active' ? 'Ativo' : 'Suspenso'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-6">
+                            <div className="text-right">
+                              <p className="text-xs text-slate-400 uppercase font-bold">Limite de Documentos</p>
+                              {editingId === officeId ? (
+                                <div className="flex items-center gap-1 mt-1">
+                                  <input
+                                    type="number"
+                                    value={tempLimit}
+                                    onChange={(e) => setTempLimit(Number(e.target.value))}
+                                    className="w-20 px-2 py-1 text-sm border border-primary rounded dark:bg-slate-900 dark:text-white"
+                                    autoFocus
+                                  />
+                                  <button onClick={() => saveLimit(officeId)} className="bg-green-500 text-white p-1 rounded"><span className="material-symbols-outlined text-sm">check</span></button>
+                                  <button onClick={() => setEditingId(null)} className="bg-slate-500 text-white p-1 rounded"><span className="material-symbols-outlined text-sm">close</span></button>
+                                </div>
+                              ) : (
+                                <div
+                                  className="flex items-center gap-2 cursor-pointer group mt-1"
+                                  onClick={() => startEditing(officeId, officeData?.documents_limit || 0)}
+                                >
+                                  <p className="text-xl font-black text-primary">
+                                    {officeData?.documents_generated || 0} / {officeData?.documents_limit || 0}
+                                  </p>
+                                  <span className="material-symbols-outlined text-slate-400 group-hover:text-primary text-sm">edit</span>
+                                </div>
+                              )}
+                            </div>
+
+                            <button
+                              onClick={() => toggleUserStatus(group.owner.id, officeData?.plan_status, officeId)}
+                              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${officeData?.plan_status === 'active'
+                                ? 'bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white'
+                                : 'bg-green-500/10 text-green-500 hover:bg-green-500 hover:text-white'
+                                }`}
+                            >
+                              <span className="material-symbols-outlined text-sm">{officeData?.plan_status === 'active' ? 'block' : 'check_circle'}</span>
+                              {officeData?.plan_status === 'active' ? 'Suspender Plano' : 'Ativar Plano'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
 
                       {/* Dono do Escritório */}
                       <div className="mb-4">
@@ -198,47 +262,6 @@ const AdminUsers: React.FC = () => {
                               <p className="text-xs text-slate-500">{group.owner?.email}</p>
                             </div>
                             {getRoleBadge('office')}
-                          </div>
-                          <div className="flex items-center gap-4">
-                            {/* Limite de docs */}
-                            <div className="text-right">
-                              <p className="text-xs text-slate-400">Limite</p>
-                              {editingId === group.owner?.id ? (
-                                <div className="flex items-center gap-1">
-                                  <input
-                                    type="number"
-                                    value={tempLimit}
-                                    onChange={(e) => setTempLimit(Number(e.target.value))}
-                                    className="w-16 px-2 py-1 text-sm border border-primary rounded dark:bg-slate-900 dark:text-white"
-                                    autoFocus
-                                  />
-                                  <button onClick={() => saveLimit(group.owner.id)} className="text-green-600 p-1"><span className="material-symbols-outlined text-sm">check</span></button>
-                                  <button onClick={() => setEditingId(null)} className="text-red-500 p-1"><span className="material-symbols-outlined text-sm">close</span></button>
-                                </div>
-                              ) : (
-                                <p
-                                  className="text-sm font-bold text-slate-900 dark:text-white cursor-pointer hover:text-primary"
-                                  onClick={() => startEditing(group.owner.id, group.owner.documents_limit)}
-                                >
-                                  {group.owner?.documents_generated || 0} / {group.owner?.documents_limit || 0}
-                                </p>
-                              )}
-                            </div>
-                            {/* Ações */}
-                            <div className="flex gap-1">
-                              <button
-                                onClick={() => toggleUserStatus(group.owner.id, group.owner.plan_status)}
-                                title={group.owner?.plan_status === 'active' ? "Suspender" : "Ativar"}
-                                className={`p-2 rounded-lg transition-colors ${group.owner?.plan_status === 'active'
-                                    ? 'text-slate-400 hover:text-orange-500 hover:bg-orange-50'
-                                    : 'text-green-500 hover:bg-green-50'
-                                  }`}
-                              >
-                                <span className="material-symbols-outlined">
-                                  {group.owner?.plan_status === 'active' ? 'block' : 'check_circle'}
-                                </span>
-                              </button>
-                            </div>
                           </div>
                         </div>
                       </div>
@@ -265,31 +288,13 @@ const AdminUsers: React.FC = () => {
                                   {getRoleBadge(member.role)}
                                 </div>
                                 <div className="flex items-center gap-3">
-                                  <span className={`text-xs px-2 py-0.5 rounded ${member.plan_status === 'active'
-                                      ? 'bg-green-100 text-green-700'
-                                      : 'bg-red-100 text-red-700'
-                                    }`}>
-                                    {member.plan_status === 'active' ? 'Ativo' : 'Suspenso'}
-                                  </span>
                                   <div className="flex gap-1">
                                     <button
-                                      onClick={() => toggleUserStatus(member.id, member.plan_status)}
-                                      title={member.plan_status === 'active' ? "Suspender" : "Ativar"}
-                                      className={`p-1.5 rounded transition-colors ${member.plan_status === 'active'
-                                          ? 'text-slate-400 hover:text-orange-500 hover:bg-orange-50'
-                                          : 'text-green-500 hover:bg-green-50'
-                                        }`}
-                                    >
-                                      <span className="material-symbols-outlined text-lg">
-                                        {member.plan_status === 'active' ? 'block' : 'check_circle'}
-                                      </span>
-                                    </button>
-                                    <button
                                       onClick={() => deleteUser(member.id)}
-                                      title="Excluir"
+                                      title="Remover do Escritório"
                                       className="p-1.5 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                                     >
-                                      <span className="material-symbols-outlined text-lg">delete</span>
+                                      <span className="material-symbols-outlined text-lg">person_remove</span>
                                     </button>
                                   </div>
                                 </div>

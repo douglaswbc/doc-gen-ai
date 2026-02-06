@@ -4,9 +4,11 @@ import { useAuth } from '../context/AuthContext';
 import { useProfile } from '../hooks/useProfile';
 import { useNavigation } from '../hooks/useNavigation';
 import { supabase } from '../lib/supabase';
+import UpgradeModal from '../components/UpgradeModal';
 
 const Dashboard: React.FC = () => {
     const { user } = useAuth();
+    const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
     // AQUI: Extraímos 'usage' para pegar os dados do escritório (compartilhado)
     const { profile, permissions, usage, loading: profileLoading } = useProfile();
@@ -16,7 +18,6 @@ const Dashboard: React.FC = () => {
     const [clientCount, setClientCount] = useState<number | null>(null);
     const [recentDocs, setRecentDocs] = useState<any[]>([]);
 
-    const mercadoPagoLink = import.meta.env.VITE_MERCADO_PAGO_LINK || "#";
 
     // Buscar contagem de clientes ativos (Só se tiver permissão de gerir clientes)
     useEffect(() => {
@@ -155,15 +156,13 @@ const Dashboard: React.FC = () => {
 
                                 {/* Botão Upgrade apenas para Dono (canManageOffice) */}
                                 {permissions.canManageOffice && (
-                                    <a
-                                        href={mercadoPagoLink}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
+                                    <button
+                                        onClick={() => setShowUpgradeModal(true)}
                                         className="bg-white text-slate-900 px-4 py-2 rounded-lg font-bold text-sm hover:bg-slate-100 transition-colors shadow-md flex items-center justify-center gap-2 mt-auto"
                                     >
                                         <span className="material-symbols-outlined text-base">rocket_launch</span>
                                         Fazer Upgrade
-                                    </a>
+                                    </button>
                                 )}
                             </div>
                             <div className="absolute -bottom-4 -right-4 opacity-10">
@@ -255,6 +254,13 @@ const Dashboard: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* === UPGRADE MODAL === */}
+            <UpgradeModal
+                isOpen={showUpgradeModal}
+                onClose={() => setShowUpgradeModal(false)}
+                usage={usage}
+            />
         </div>
     );
 };
