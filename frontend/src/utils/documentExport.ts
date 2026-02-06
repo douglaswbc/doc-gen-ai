@@ -17,9 +17,11 @@ export const downloadAsPDF = async (htmlContent: string, filename: string = 'doc
     const container = document.createElement('div');
     container.innerHTML = `
         <style>
-            body { font-family: 'Times New Roman', serif; font-size: 12pt; color: #000; background: #fff; }
+            body { font-family: Arial, Helvetica, sans-serif; font-size: 12pt; color: #000; background: #fff; }
             * { color: #000 !important; border-color: #000 !important; }
             p { text-align: justify; line-height: 1.5; margin-bottom: 12px; color: #000; }
+            ol { margin-left: 30pt; padding-left: 0; list-style-position: outside; }
+            li { margin-bottom: 8px; list-style-type: decimal; display: list-item; }
             table { width: 100%; border-collapse: collapse; border: 1px solid #000; page-break-inside: avoid; color: #000; }
             th, td { border: 1px solid #000; padding: 8px; color: #000; }
             h2, h3 { margin-top: 20px; color: #000; }
@@ -84,7 +86,7 @@ export const downloadAsWord = async (htmlContent: string, filename: string = 'do
                     margin: 2cm; 
                 }
                 body { 
-                    font-family: 'Times New Roman', Times, serif; 
+                    font-family: Arial, Helvetica, sans-serif; 
                     font-size: 12pt; 
                     color: #000; 
                     line-height: 1.5;

@@ -8,14 +8,14 @@ import { useAgents } from './useAgents';
 import { ClientData, Signer } from '../types';
 
 // Importando o template do local correto (utils)
-import { template as salarioMaternidadeTemplate } from '../utils/templates/salarioMaternidade'; 
+import { template as salarioMaternidadeTemplate } from '../utils/templates/salarioMaternidade';
 
 export const useCreateDocumentLogic = () => {
     const { user } = useAuth();
     const [searchParams] = useSearchParams();
     const { profile, fetchProfile, isLimitReached, incrementUsage } = useProfile();
     const { agents } = useAgents(true);
-    
+
     const docGen = useDocumentGenerator();
 
     const [progress, setProgress] = useState(0);
@@ -29,7 +29,7 @@ export const useCreateDocumentLogic = () => {
         name: '', nationality: 'Brasileira', marital_status: '', profession: 'Agricultora', birth_date: '', cpf: '', rg: '', rg_issuer: '', address: '',
         zip_code: '', city: '', state: '', neighborhood: '',
         child_name: '', child_cpf: '', child_birth_date: '',
-        children: [{ name: '', cpf: '', birth_date: '' }],
+        children: [{ name: '', cpf: '', birth_date: '', benefits: [{ der: '', nb: '', benefit_status: 'indeferido', denied_date: '', decision_reason: '' }] }],
         der: '', nb: '', benefit_status: 'indeferido',
         denied_date: '', decision_reason: '', activity_before_birth: '', special_insured_period: '',
         controversial_point: '', previous_benefit: 'Não consta', cnis_period: 'Não consta', urban_link: 'Nunca teve',
@@ -42,6 +42,7 @@ export const useCreateDocumentLogic = () => {
     const [isSearching, setIsSearching] = useState(false);
     const [docType, setDocType] = useState('');
     const [isSaving, setIsSaving] = useState(false);
+    const [jurisdiction, setJurisdiction] = useState<any>(null);
 
     // === CORREÇÃO AQUI: Declarando as variáveis da URL ===
     const initialAgentTitle = searchParams.get('type') || '';
@@ -49,6 +50,78 @@ export const useCreateDocumentLogic = () => {
     const sphereParam = searchParams.get('sphere'); // <--- A linha que faltava
     const availableTasks = tasksParam ? JSON.parse(decodeURIComponent(tasksParam)) : [];
     const { clientId } = useParams<{ clientId?: string }>();
+
+    const fetchJurisdiction = async (city: string, state: string) => {
+        if (!city || !state) return;
+        setJurisdiction(null);
+        try {
+            const stateUpper = state.toUpperCase();
+            const searchTerms = city.trim().toLowerCase();
+
+            // 1. Busca todos os municípios do estado
+            const { data: allMun, error: munError } = await supabase
+                .from('municipalities')
+                .select('id, name')
+                .eq('state', stateUpper);
+
+            if (munError) throw munError;
+
+            // Tenta encontrar o município que está presente na string digitada
+            // Prioriza o nome mais longo em caso de múltiplas correspondências (ex: "Santarem" vs "Santarém Novo")
+            const matchedMun = allMun
+                ?.filter(m => searchTerms.includes(m.name.toLowerCase()) || m.name.toLowerCase().includes(searchTerms))
+                .sort((a, b) => b.name.length - a.name.length)[0];
+
+            if (!matchedMun) return;
+
+            // 2. Busca detalhes da jurisdição
+            const { data, error } = await supabase
+                .from('jurisdiction_map')
+                .select(`
+                    legal_basis,
+                    municipality:municipality_id (name, state),
+                    judicial_subsections (
+                        name,
+                        city,
+                        has_jef,
+                        judicial_sections (
+                            name
+                        )
+                    )
+                `)
+                .eq('municipality_id', matchedMun.id)
+                .limit(1)
+                .single();
+
+            if (error) throw error;
+
+            if (data && data.judicial_subsections) {
+                const subsection = data.judicial_subsections;
+                // @ts-ignore
+                const sectionName = subsection.judicial_sections?.name;
+
+                setJurisdiction({
+                    city: data.municipality?.name || matchedMun.name,
+                    state: data.municipality?.state || stateUpper,
+                    courtCity: subsection.city,
+                    subsection: subsection.name,
+                    has_jef: subsection.has_jef,
+                    section: sectionName,
+                    legal_basis: data.legal_basis
+                });
+            }
+        } catch (err) {
+            console.error('Erro ao buscar jurisdição:', err);
+            setJurisdiction(null);
+        }
+    };
+
+    useEffect(() => {
+        const timeout = setTimeout(() => {
+            fetchJurisdiction(clientData.city || '', clientData.state || '');
+        }, 800);
+        return () => clearTimeout(timeout);
+    }, [clientData.city, clientData.state]);
 
     // If a clientId is present in the path, load that client and hydrate the form
     useEffect(() => {
@@ -58,17 +131,14 @@ export const useCreateDocumentLogic = () => {
                 const { data, error } = await supabase.from('clients').select('*').eq('id', clientId).single();
                 if (error) throw error;
                 if (data) {
-                    // Prefer normalized `children` JSONB column when available
                     let children = [{ name: data.child_name || '', cpf: data.child_cpf || '', birth_date: data.child_birth_date || '' }];
                     try {
                         if (data.children && Array.isArray(data.children) && data.children.length > 0) {
-                            // ensure each child has expected keys
                             children = data.children.map((c: any) => ({ name: c.name || '', cpf: c.cpf || '', birth_date: c.birth_date || '' }));
                         }
                     } catch (e) {
                         console.warn('Erro ao parsear children JSON:', e);
                     }
-
                     setClientData(prev => ({ ...prev, ...data, children }));
                 }
             } catch (err) {
@@ -78,48 +148,121 @@ export const useCreateDocumentLogic = () => {
         loadClient();
     }, [clientId]);
 
-    // === FUNÇÃO PRINCIPAL DE GERAÇÃO (CONECTADA AO PYTHON) ===
+    const saveClientToDb = async () => {
+        if (!user || !clientData.name) return null;
+
+        const payload: any = { ...clientData, user_id: user.id, updated_at: new Date().toISOString() };
+        const dateFields = ['birth_date', 'child_birth_date', 'der', 'denied_date'];
+
+        delete payload.children;
+        // Não deletar mais city, state, zip_code e neighborhood, pois agora existem na tabela clients
+        delete payload.child_name;
+        delete payload.child_cpf;
+        delete payload.child_birth_date;
+
+        const ruralVal = payload.rural_start_date;
+        if (ruralVal && ruralVal !== '') {
+            payload.rural_start_date = ruralVal;
+            payload.rural_tasks = [payload.rural_tasks || '', `Início atividade rural: ${ruralVal}`].filter(Boolean).join('\n');
+        } else {
+            payload.rural_start_date = null;
+        }
+
+        dateFields.forEach(field => {
+            if (payload[field] === '') {
+                payload[field] = null;
+            }
+        });
+
+        if (!payload.id) delete payload.id;
+        if (profile?.office_id) payload.office_id = profile.office_id;
+
+        try {
+            const { data, error } = await supabase.from('clients').upsert(payload).select().single();
+            if (error) throw error;
+
+            try {
+                if (clientData.children && Array.isArray(clientData.children) && clientData.children.length > 0) {
+                    const sessionRes = await supabase.auth.getSession();
+                    const token = sessionRes?.data?.session?.access_token;
+                    const childrenBody = clientData.children.map((c: any) => ({ name: c.name || null, cpf: c.cpf || null, birth_date: c.birth_date || null }));
+                    const apiBase = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || 'http://localhost:8000';
+                    await fetch(`${apiBase}/api/clients/${data.id}/children`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                        },
+                        body: JSON.stringify(childrenBody)
+                    });
+
+                    await supabase.from('clients').update({ children: childrenBody }).eq('id', data.id);
+                }
+            } catch (err) {
+                console.error('Error persisting children:', err);
+            }
+
+            return data;
+        } catch (err) {
+            console.error('Erro ao salvar cliente:', err);
+            return null;
+        }
+    };
+
+    const [isGenerating, setIsGenerating] = useState(false);
+
     const generate = async (
-        agentName: string, 
-        docType: string, 
-        clientName: string, 
-        details: string, 
+        agentName: string,
+        docType: string,
+        clientName: string,
+        details: string,
         provider: string,
         systemInstruction: string
     ) => {
+        setIsGenerating(true);
         try {
-            setProgress(10);
+            setProgress(5);
+            setProgressStatus('Salvando dados do cliente...');
+            const savedClient = await saveClientToDb();
+            if (savedClient) setClientData(prev => ({ ...prev, id: savedClient.id }));
+
+            setProgress(15);
             setProgressStatus('Conectando ao servidor neural...');
 
-            setProgress(30);
+            setProgress(35);
             setProgressStatus('Processando no Python (Buscando Jurisprudência e Redigindo)...');
 
             // Chamada Unificada ao Backend
             const aiResponse = await docGen.generate(
-                agentName || 'salario_maternidade', 
+                agentName || 'salario_maternidade',
                 docType,
                 clientName,
-                details, 
+                details,
                 provider,
-                systemInstruction, 
-                clientData 
+                systemInstruction,
+                clientData
             );
 
-            setProgress(80);
-            setProgressStatus('Formatando documento final...');
-
             if (aiResponse) {
+                setProgress(80);
+                setProgressStatus('Formatando documento final...');
+
                 const selectedSignersList = signers.filter(s => selectedSignerIds.includes(s.id));
-                
+
                 try {
-                    // Renderiza o template com os dados vindos do Python
+                    // Injeta jurisdição se encontrada no hook
+                    if (jurisdiction) {
+                        aiResponse.jurisdiction = jurisdiction;
+                    }
+
+                    // Renderiza o template com os dados vindos do Python e jurisdição estruturada
                     const finalHtml = salarioMaternidadeTemplate.render(
-                        aiResponse,    
-                        clientData,    
+                        aiResponse,
+                        clientData,
                         profile?.office,
                         selectedSignersList
                     );
-                    
+
                     docGen.setGeneratedContent(finalHtml);
                     setProgress(100);
                     setProgressStatus('Concluído!');
@@ -137,6 +280,8 @@ export const useCreateDocumentLogic = () => {
             console.error(error);
             setProgress(0);
             setProgressStatus('Erro na conexão.');
+        } finally {
+            setIsGenerating(false);
         }
     };
 
@@ -184,17 +329,19 @@ export const useCreateDocumentLogic = () => {
     return {
         user, profile, agents,
         generatedContent: docGen.generatedContent,
-        isGenerating: docGen.isGenerating,
+        isGenerating: isGenerating,
         progress, progressStatus,
         signers, setSigners, selectedSignerIds, setSelectedSignerIds,
         isSignerDropdownOpen, setIsSignerDropdownOpen,
         clientData, setClientData, suggestions, showSuggestions, setShowSuggestions, isSearching,
         docType, setDocType, isSaving, setIsSaving,
-        initialAgentTitle, 
+        initialAgentTitle,
         sphereParam, // Agora esta variável existe!
         availableTasks,
-        generate, 
+        generate,
+        saveClientToDb,
         incrementUsage, fetchProfile, isLimitReached, searchClients, setProgress, setProgressStatus,
-        setGeneratedContent: docGen.setGeneratedContent 
+        setGeneratedContent: docGen.setGeneratedContent,
+        jurisdiction, fetchJurisdiction
     };
 };

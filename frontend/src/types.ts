@@ -71,6 +71,21 @@ export interface Profile {
   is_active: boolean;
 }
 
+export interface BenefitDetail {
+  der: string;
+  nb: string;
+  benefit_status: string;
+  denied_date: string;
+  decision_reason: string;
+}
+
+export interface Child {
+  name: string;
+  cpf: string;
+  birth_date: string;
+  benefits?: BenefitDetail[];
+}
+
 export interface ClientData {
   id?: string;
   name: string;
@@ -91,14 +106,15 @@ export interface ClientData {
   child_name: string;
   child_cpf: string;
   child_birth_date: string;
-  children?: Array<{ name: string; cpf: string; birth_date: string }>;
+  children?: Child[];
 
-  // Benefício
+  // Benefício (Mantidos para compatibilidade, mas o foco agora é no array de children/benefits)
   der: string;
   nb: string;
   benefit_status: string;
   denied_date: string;
   decision_reason: string;
+
   activity_before_birth: string;
   special_insured_period: string;
   controversial_point: string;

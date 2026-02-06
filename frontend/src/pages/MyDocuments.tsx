@@ -172,7 +172,7 @@ const MyDocuments: React.FC = () => {
       <head>
         <meta charset="utf-8">
         <style>
-          body { font-family: 'Times New Roman', serif; font-size: 12pt; color: #000; }
+          body { font-family: Arial, Helvetica, sans-serif; font-size: 12pt; color: #000; }
           p { text-align: justify; line-height: 1.5; margin-bottom: 10px; }
           table { width: 100%; border-collapse: collapse; margin: 20px 0; border: 1px solid black; }
           th, td { border: 1px solid black; padding: 8px; text-align: left; vertical-align: top; }
@@ -275,8 +275,8 @@ const MyDocuments: React.FC = () => {
             <button
               onClick={() => setShowFilters(!showFilters)}
               className={`flex items-center gap-1 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${showFilters || statusFilter !== 'all' || dateFrom || dateTo
-                  ? 'bg-primary/10 border-primary text-primary'
-                  : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                ? 'bg-primary/10 border-primary text-primary'
+                : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
                 }`}
             >
               <span className="material-symbols-outlined text-sm">filter_list</span>
@@ -512,7 +512,7 @@ const MyDocuments: React.FC = () => {
             <div className="flex-1 overflow-y-auto custom-scrollbar bg-gray-50 dark:bg-[#111318] p-6">
               <div
                 ref={editorRef}
-                className={`prose prose-sm sm:prose-base dark:prose-invert max-w-none bg-white dark:bg-[#1C2431] p-8 rounded-lg shadow-sm border transition-all font-serif ${isEditing
+                className={`prose prose-sm sm:prose-base dark:prose-invert max-w-none bg-white dark:bg-[#1C2431] p-8 rounded-lg shadow-sm border transition-all font-sans ${isEditing
                   ? 'border-primary ring-2 ring-primary/20 cursor-text'
                   : 'border-gray-100 dark:border-gray-800'
                   }`}

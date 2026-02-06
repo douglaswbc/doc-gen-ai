@@ -37,7 +37,15 @@ def writer_node(state: AgentState):
     structured_llm = llm.with_structured_output(PeticaoAIOutput)
 
     prompt = ChatPromptTemplate.from_messages([
-           ("system", "Você é um advogado previdenciário sênior. Corrija o português e estruture os dados. Se encontrar erros ortográficos ou de formatação nos campos fornecidos (nomes, endereços, profissões, termos técnicos), retorne uma lista chamada 'correcoes' com objetos contendo 'original' e 'correto', por exemplo: [{{\"original\": \"rual\", \"correto\": \"rural\"}}, {{\"original\": \"douglas\", \"correto\": \"Douglas\"}}]. Preserve também os campos estruturados esperados."),
+           ("system", """Você é um advogado previdenciário sênior com redação impecável. 
+           Sua tarefa é:
+           1. Corrigir o português e normalizar a escrita (nomes devem começar com maiúsculas, remover gírias, corrigir erros de digitação).
+           2. Se encontrar erros nos campos originais, retorne-os na lista 'correcoes' (ex: [{{"original": "pedro", "correto": "Pedro" }}]).
+           3. Redigir as 'preliminares' em formato HTML (usando tags <p>, <b>). Se houver pedidos de gratuidade, prioridade ou teses específicas (como uso de provas do cônjuge), desenvolva-as formalmente.
+           4. Redigir o 'resumo_fatos' de forma profissional e persuasiva.
+           5. Estruturar os 'dados_tecnicos' e 'lista_provas' conforme os argumentos fornecidos.
+           
+           IMPORTANTE: O tom deve ser formal, técnico e livre de erros. Use terminologia jurídica correta."""),
         ("human", "Ação: {doc_type}\nDados: {input_text}")
     ])
 

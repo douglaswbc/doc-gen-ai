@@ -13,6 +13,7 @@ class DadosTecnicos(BaseModel):
     profissao_formatada: str = Field(description="Ex: Agricultora (Economia Familiar)")
 
 class PeticaoAIOutput(BaseModel):
+    preliminares: Optional[str] = Field(None, description="HTML com as preliminares (Justiça Gratuita, Prioridades, etc)")
     resumo_fatos: str
     dados_tecnicos: DadosTecnicos
     lista_provas: List[str]
@@ -21,9 +22,16 @@ class PeticaoAIOutput(BaseModel):
 # --- Modelos da API (Entrada/Saída) ---
 class ClientData(BaseModel):
     name: str
+    cpf: Optional[str] = None
+    birth_date: Optional[str] = None
+    zip_code: Optional[str] = None
     address: str
+    neighborhood: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
     details: str
     child_birth_date: Optional[str] = None
+    children: Optional[List[dict]] = None
     class Config:
         extra = "allow"
 
@@ -40,6 +48,7 @@ class GenerateResponse(BaseModel):
     lista_provas: List[str]
     inss_address: str
     end_cidade_uf: str = ""
+    jurisdiction: Optional[dict] = None
     correcoes: List[dict] = []
     jurisprudencias_selecionadas: List[dict]
     tabela_calculo: List[Any] = []

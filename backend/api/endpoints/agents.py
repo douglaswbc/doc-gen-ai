@@ -6,7 +6,7 @@ from typing import Optional
 
 from models.schemas import GenerateRequest, GenerateResponse
 from agents.workflow import app_graph
-from services.search import search_inss_address, search_jurisprudence, search_judicial_subsection
+from services.search import search_jurisprudence, search_judicial_subsection
 from services.calculations import generate_payment_table, get_valor_extenso
 
 router = APIRouter()
@@ -46,18 +46,23 @@ async def generate_document(
     print(f"🚀 [API] Usuário Autenticado: {user_auth.user.email}")
 
     try:
-        # 1. PARALELISMO: Buscas Externas (Serper)
-        print("🔍 Buscando INSS e Jurisprudência...")
-        inss_task = search_inss_address(request.clientData.address)
+        print("🔍 Buscando Jurisprudência e Jurisdição...")
         juris_task = search_jurisprudence(f"{request.docType} rural recentes")
-        subsection_task = search_judicial_subsection(request.clientData.address)
+        subsection_task = search_judicial_subsection(
+            request.clientData.address, 
+            city=request.clientData.city, 
+            state=request.clientData.state
+        )
 
-        inss_address, raw_jurisprudencias, end_cidade_uf = await asyncio.gather(inss_task, juris_task, subsection_task)
+        raw_jurisprudencias, juris_data = await asyncio.gather(juris_task, subsection_task)
+        inss_address = "Consultar Órgão Previdenciário Local" # Valor padrão agora
 
         # 2. CÁLCULOS FINANCEIROS
         print("💰 Realizando cálculos...")
-        # Tenta pegar a data de nascimento da criança do form ou usa a data atual como fallback
+        # Tenta pegar a data de nascimento da criança do form ou do primeiro filho da lista
         data_nascimento = getattr(request.clientData, 'child_birth_date', None)
+        if not data_nascimento and request.clientData.children:
+            data_nascimento = request.clientData.children[0].get('birth_date')
         
         tabela, valor_total = generate_payment_table(data_nascimento)
         valor_extenso = get_valor_extenso(valor_total)
@@ -88,12 +93,14 @@ async def generate_document(
         # Retorna o JSON que o Template.ts do Frontend espera (inclui cidade/uf da subseção e correções)
         return GenerateResponse(
             resumo_fatos=ai_data.resumo_fatos,
+            preliminares=getattr(ai_data, 'preliminares', None),
             dados_tecnicos=ai_data.dados_tecnicos.model_dump(),
             lista_provas=ai_data.lista_provas,
             
             # Dados enriquecidos pelo Python:
             inss_address=inss_address,
-            end_cidade_uf=end_cidade_uf,
+            end_cidade_uf=f"{juris_data.get('city', '')}-{juris_data.get('state', '')}" if isinstance(juris_data, dict) else str(juris_data),
+            jurisdiction=juris_data if isinstance(juris_data, dict) else None,
             correcoes=getattr(ai_data, 'correcoes', []),
             jurisprudencias_selecionadas=juris_formatada[:3],
             tabela_calculo=tabela,

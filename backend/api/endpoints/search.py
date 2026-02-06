@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 from typing import List, Dict
-from services.search import search_inss_address, search_jurisprudence, search_jurisdiction_db
+from services.search import search_jurisprudence, search_jurisdiction_db
 
 router = APIRouter()
 
@@ -20,9 +20,6 @@ async def search_laws(data: SearchQuery):
     return await search_jurisprudence(data.query)
 
 
-@router.post("/inss")
-async def search_address(data: SearchQuery):
-    return await search_inss_address(data.query)
 
 
 @router.post("/jurisdiction")

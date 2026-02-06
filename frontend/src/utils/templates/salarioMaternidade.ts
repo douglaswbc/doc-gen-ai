@@ -1,6 +1,7 @@
 // src/utils/templates/salarioMaternidade.ts
 
 import { moneyToWords } from '../numberToWords';
+import { getJurisdictionHeader } from '../jurisdictionUtils';
 
 /**
  * Interface simples para o Template
@@ -30,6 +31,12 @@ export const template: AgentTemplate = {
     };
     const documentId = generateDocId();
     const generatedAt = new Date().toLocaleString('pt-BR');
+
+    // 5. Soma Total (Cálculo no Frontend para garantir precisão)
+    const totalValue = aiData.tabela_calculo?.reduce((acc: number, r: any) => {
+      const val = typeof r.valor_reajustado === 'number' ? r.valor_reajustado : parseFloat(String(r.valor_reajustado).replace('R$', '').replace(/\./g, '').replace(',', '.').trim());
+      return acc + (isNaN(val) ? 0 : val);
+    }, 0) || 0;
 
     // === HELPERS ===
     const formatMoney = (val: number | string) => {
@@ -66,6 +73,12 @@ export const template: AgentTemplate = {
 
     // === Helpers para cidade/UF e data longa ===
     const getCityUf = () => {
+      // Prioridade 1: cidade e estado limpos do clientData
+      if (clientData.city && clientData.state) {
+        const city = clientData.city.trim().split(/\s+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        return `${city}-${clientData.state.toUpperCase()}`;
+      }
+
       const raw = (aiData.end_cidade_uf || (clientData && (clientData.city || clientData.address)) || '').toString().trim();
       if (!raw) return 'COMPETENTE';
       let s = raw.replace(/\s+/g, ' ').trim();
@@ -147,6 +160,9 @@ export const template: AgentTemplate = {
       const toTitle = (s: string) => s.split(/\s+/).filter(Boolean).map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
       if (cd.name) cd.name = toTitle(cd.name);
       if (cd.child_name) cd.child_name = toTitle(cd.child_name);
+      if (cd.children && cd.children.length > 0 && cd.children[0].name) {
+        cd.children[0].name = toTitle(cd.children[0].name);
+      }
 
       return cd;
     })();
@@ -196,11 +212,9 @@ export const template: AgentTemplate = {
   `;
 
     // === 3. TABELA DE CÁLCULO (LINHAS COMPACTAS) ===
-    let totalValue = 0;
     const calcRows = aiData.tabela_calculo?.map((row: any) => {
       const valorBase = typeof row.valor_base === 'string' ? parseFloat(row.valor_base) : row.valor_base;
       const valorReajustado = typeof row.valor_reajustado === 'string' ? parseFloat(row.valor_reajustado) : row.valor_reajustado;
-      totalValue += valorReajustado || 0;
 
       // Note a classe 'compact-row' e estilos inline para garantir
       return `
@@ -234,7 +248,7 @@ export const template: AgentTemplate = {
         }
 
         body {
-          font-family: 'Times New Roman', serif;
+          font-family: Arial, Helvetica, sans-serif;
           font-size: 12pt;
           line-height: 1.5;
           -webkit-print-color-adjust: exact;
@@ -305,7 +319,7 @@ export const template: AgentTemplate = {
       ${headerHtml}
 
       <p align="center" style="font-weight: bold; text-transform: uppercase; margin-bottom: 20px;">
-        AO JUÍZO FEDERAL DA VARA DO JUIZADO ESPECIAL FEDERAL DA COMARCA DE ${getCityUf().toUpperCase()}.
+        ${getJurisdictionHeader(aiData, getCityUf())}
       </p>
 
       <div style="text-align: center; font-weight: bold; margin: 20px 0;">
@@ -327,8 +341,9 @@ export const template: AgentTemplate = {
       <h2>AÇÃO PREVIDENCIÁRIA DE CONCESSÃO DE SALÁRIO MATERNIDADE (RURAL)</h2>
 
       <p>
-        Em face do <b>INSTITUTO NACIONAL DO SEGURO SOCIAL - INSS</b>, pessoa jurídica de direito público, 
-        podendo ser citado em sua agência mais próxima localizada à <b>${aiData.inss_address || 'Endereço não localizado'}</b>.
+        Em face do <b>INSTITUTO NACIONAL DO SEGURO SOCIAL – INSS</b>, autarquia federal, CNPJ 16.727.230/0001 97, 
+        com endereço eletrônico conhecido por este juízo, podendo também ser citada em sua sede à 
+        <b>${aiData.inss_address || 'Endereço não localizado'}</b> pelos motivos fáticos e jurídicos a seguir expendidos:
       </p>
 
       <h3>I. PRELIMINARMENTE</h3>
@@ -338,20 +353,34 @@ export const template: AgentTemplate = {
       <p style="font-weight: bold; margin-bottom: 5px;">RESUMO DAS PRINCIPAIS INFORMAÇÕES DO PROCESSO</p>
       
       <table class="data-table" cellspacing="0" cellpadding="4">
-        <tr><td class="bg-gray">NOME:</td><td>${cd.name.toUpperCase()}</td></tr>
-        <tr><td class="bg-gray">Idade no Req. Adm.:</td><td>${calculateAge(cd.birth_date)}</td></tr>
-        <tr><td class="bg-gray">Pedido:</td><td>Salário maternidade – segurado especial</td></tr>
-        <tr><td class="bg-gray">Criança:</td><td>${capitalize(cd.child_name)}</td></tr>
-        <tr><td class="bg-gray">Data de Nascimento:</td><td>${formatDate(cd.child_birth_date)}</td></tr>
-        <tr><td class="bg-gray">Data do Req. Adm:</td><td>${formatDate(cd.der)}</td></tr>
-        <tr><td class="bg-gray">NB:</td><td>${cd.nb}</td></tr>
-        <tr><td class="bg-gray">Situação do Benefício:</td><td>${capitalize(cd.benefit_status)}</td></tr>
-        <tr><td class="bg-gray">Data do Indef. Adm:</td><td>${formatDate(cd.denied_date)}</td></tr>
-        
+        <tr><td style="background: #fff; width: 40%; border: 1px solid #000;"><b>NOME</b></td><td style="border: 1px solid #000;">${cd.name.toUpperCase()}</td></tr>
+        <tr><td style="background: #fff; border: 1px solid #000;"><b>IDADE NO REQ. ADM.</b></td><td style="border: 1px solid #000;">${calculateAge(cd.birth_date)}</td></tr>
+        <tr><td style="background: #fff; border: 1px solid #000;"><b>PEDIDO</b></td><td style="border: 1px solid #000;">Salário-Maternidade (Segurada Especial)</td></tr>
         <tr>
-            <td class="bg-gray">Motivo da Decisão do INSS:</td>
-            <td>${aiData.dados_tecnicos?.motivo_indeferimento || capitalize(cd.decision_reason)}</td>
+          <td style="background: #fff; border: 1px solid #000;"><b>CRIANÇA(S)</b></td>
+          <td style="border: 1px solid #000;">
+            ${(cd.children && cd.children.length > 0)
+        ? cd.children.map((c: any) => `${capitalize(c.name || '...')} (Nasc: ${formatDate(c.birth_date)})`).join('<br>')
+        : capitalize(cd.child_name || '...') + ' (Nasc: ' + formatDate(cd.child_birth_date) + ')'
+      }
+          </td>
         </tr>
+
+        ${(cd.children || []).map((child: any) =>
+        (child.benefits || []).map((benefit: any, bIdx: number) => `
+            <tr>
+              <td style="background: #fff; border: 1px solid #000;">
+                <b>DETALHES DO BENEFÍCIO (${child.name?.split(' ')[0] || 'Filho'}${bIdx > 0 ? ` - Negativa ${bIdx + 1}` : ''})</b>
+              </td>
+              <td style="border: 1px solid #000;">
+                <b>DER:</b> ${formatDate(benefit.der)} | <b>NB:</b> ${benefit.nb}<br>
+                <b>Situação:</b> ${capitalize(benefit.benefit_status)} em ${formatDate(benefit.denied_date)}<br>
+                <b>Motivo:</b> ${benefit.decision_reason || 'Não informado'}
+              </td>
+            </tr>
+          `).join('')
+      ).join('')}
+        
         <tr>
             <td class="bg-gray">Tempo de Trabalho Rural:</td>
             <td>${aiData.dados_tecnicos?.tempo_atividade || capitalize(cd.activity_before_birth) || 'Mais de 10 meses antes do nascimento'}</td>
@@ -362,7 +391,7 @@ export const template: AgentTemplate = {
         </tr>
         <tr>
             <td class="bg-gray">Ponto Controvertido:</td>
-            <td>${aiData.dados_tecnicos?.ponto_controvertido || capitalize(cd.controversial_point) || 'Carência'}</td>
+            <td>${aiData.dados_tecnicos?.ponto_controvertido || capitalize(cd.controversial_point) || 'Qualidade de segurado/carência'}</td>
         </tr>
         <tr>
             <td class="bg-gray">Benefício Anterior:</td>
@@ -389,7 +418,10 @@ export const template: AgentTemplate = {
 
       <h3>IV. DAS PROVAS JUNTADAS AOS AUTOS</h3>
       <ol style="margin-left: 20px;">
-        <li>Certidão de nascimento da criança ${clientData.child_name || 'João de Tal'} constando a zona rural como local de nascimento;</li>
+        ${(cd.children && cd.children.length > 0)
+        ? cd.children.map((c: any) => `<li>Certidão de nascimento da criança ${capitalize(c.name || '...')} constando a zona rural como local de nascimento;</li>`).join('')
+        : `<li>Certidão de nascimento da criança ${cd.child_name || '...'} constando a zona rural como local de nascimento;</li>`
+      }
         <li>Certidão eleitoral constando a comunidade rural como local de votação;</li>
         ${aiData.lista_provas?.map((p: string) => `<li>${p}</li>`).join('') || '<li>Outros documentos em anexo.</li>'}
       </ol>
@@ -447,6 +479,13 @@ export const template: AgentTemplate = {
       <div style="margin-top: 60px;">
         <p style="text-align: left;">Termos em que, pede e espera deferimento.</p>
         <p style="text-align: right;">${(() => {
+        // Sugestão: Usar a cidade do escritório para a datação, se disponível.
+        if (officeData?.city) {
+          const city = officeData.city.trim().split(/\s+/).filter(Boolean).map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+          const state = officeData.state?.toUpperCase() || '';
+          return `${city}${state ? `-${state}` : ''}, ${formatLongDate(new Date())}.`;
+        }
+
         const raw = getCityUf();
         // Format city name properly for closing (Title Case city, uppercase UF when available)
         const m = raw.match(/^(.+)-([A-Z]{2})$/i);
