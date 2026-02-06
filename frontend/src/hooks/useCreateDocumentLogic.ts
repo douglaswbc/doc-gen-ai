@@ -157,10 +157,20 @@ export const useCreateDocumentLogic = () => {
     const saveClientToDb = async () => {
         if (!user || !clientData.name) return null;
 
-        const payload: any = { ...clientData, user_id: user.id, updated_at: new Date().toISOString() };
+        const payload: any = {
+            ...clientData,
+            user_id: user.id,
+            updated_at: new Date().toISOString(),
+            children: clientData.children?.map((c: any) => ({
+                name: c.name || null,
+                cpf: c.cpf || null,
+                birth_date: c.birth_date || null,
+                benefits: c.benefits || []
+            })) || []
+        };
         const dateFields = ['birth_date', 'child_birth_date', 'der', 'denied_date'];
 
-        delete payload.children;
+        // Removido delete payload.children, pois agora é salvo diretamente via JSONB no upsert
         // Não deletar mais city, state, zip_code e neighborhood, pois agora existem na tabela clients
         delete payload.child_name;
         delete payload.child_cpf;
@@ -186,33 +196,6 @@ export const useCreateDocumentLogic = () => {
         try {
             const { data, error } = await supabase.from('clients').upsert(payload).select().single();
             if (error) throw error;
-
-            try {
-                if (clientData.children && Array.isArray(clientData.children) && clientData.children.length > 0) {
-                    const sessionRes = await supabase.auth.getSession();
-                    const token = sessionRes?.data?.session?.access_token;
-                    const childrenBody = clientData.children.map((c: any) => ({
-                        name: c.name || null,
-                        cpf: c.cpf || null,
-                        birth_date: c.birth_date || null,
-                        benefits: c.benefits || []
-                    }));
-                    const apiBase = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || 'http://localhost:8000';
-                    await fetch(`${apiBase}/api/clients/${data.id}/children`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-                        },
-                        body: JSON.stringify(childrenBody)
-                    });
-
-                    await supabase.from('clients').update({ children: childrenBody }).eq('id', data.id);
-                }
-            } catch (err) {
-                console.error('Error persisting children:', err);
-            }
-
             return data;
         } catch (err) {
             console.error('Erro ao salvar cliente:', err);
