@@ -1,13 +1,23 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional, Any
 
-# --- Modelos Internos da IA ---
+# --- 1. NOVO MODELO: Correção de Dados Cadastrais ---
+class DadosCadastraisCorrigidos(BaseModel):
+    name: Optional[str] = Field(None, description="Nome corrigido (Capitalização correta)")
+    address: Optional[str] = Field(None, description="Logradouro corrigido (ex: Rua, Av.)")
+    neighborhood: Optional[str] = Field(None, description="Bairro corrigido")
+    city: Optional[str] = Field(None, description="Cidade corrigida")
+    state: Optional[str] = Field(None, description="UF (Sigla)")
+    # Se você tiver profissão no formulário, adicione aqui. 
+    # Vou assumir que profissão muitas vezes vem nos 'details' ou num campo específico
+    profession: Optional[str] = Field(None, description="Profissão corrigida (ex: Lavradora)")
 
-# 1. Definimos o objeto de correção
+# --- 2. Modelo de Correção Textual (MANTIDO) ---
 class CorrecaoItem(BaseModel):
-    original: str = Field(description="O trecho de texto original que continha erro")
-    correto: str = Field(description="A versão corrigida do texto")
+    original: str = Field(description="Trecho original com erro")
+    correto: str = Field(description="Versão corrigida")
 
+# --- 3. Dados Técnicos (MANTIDO) ---
 class DadosTecnicos(BaseModel):
     motivo_indeferimento: str = Field(description="Motivo formal corrigido")
     tempo_atividade: str = Field(description="Tempo de atividade corrigido")
@@ -18,15 +28,21 @@ class DadosTecnicos(BaseModel):
     vinculo_urbano: str = Field(description="Ex: Nunca exerceu atividade urbana")
     profissao_formatada: str = Field(description="Ex: Agricultora (Economia Familiar)")
 
+# --- 4. SAÍDA DA IA (ATUALIZADO) ---
 class PeticaoAIOutput(BaseModel):
-    preliminares: Optional[str] = Field(None, description="HTML com as preliminares (Justiça Gratuita, Prioridades, etc)")
+    preliminares: Optional[str] = Field(None, description="HTML com preliminares")
     resumo_fatos: str
     dados_tecnicos: DadosTecnicos
     lista_provas: List[str]
-    # Aqui usamos a lista tipada
-    correcoes: List[CorrecaoItem] = Field(default_factory=list, description="Lista de correções")
+    correcoes: List[CorrecaoItem] = Field(default_factory=list)
+    
+    # NOVO CAMPO: A IA preencherá isso se encontrar erros no cadastro
+    dados_cadastrais_corrigidos: Optional[DadosCadastraisCorrigidos] = Field(
+        None, 
+        description="Objeto contendo APENAS os campos cadastrais que precisaram de correção (ex: 'lauradora' -> 'Lavradora')"
+    )
 
-# --- Modelos da API (Entrada/Saída) ---
+# --- Modelos da API ---
 class ClientData(BaseModel):
     name: str
     cpf: Optional[str] = None
@@ -57,12 +73,10 @@ class GenerateResponse(BaseModel):
     inss_address: str
     end_cidade_uf: str = ""
     jurisdiction: Optional[dict] = None
-    
-    # --- CORREÇÃO AQUI ---
-    # Antes estava List[dict]. Mudamos para List[CorrecaoItem].
-    # Isso permite que o Pydantic aceite os objetos vindos da IA
-    # e os converta automaticamente para JSON para o Frontend.
     correcoes: List[CorrecaoItem] = [] 
+    
+    # NOVO CAMPO NA RESPOSTA DA API
+    dados_cadastrais: Optional[dict] = None # Frontend receberá isso
     
     jurisprudencias_selecionadas: List[dict]
     tabela_calculo: List[Any] = []

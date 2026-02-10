@@ -7,7 +7,6 @@ import { useProfile } from './useProfile';
 import { useAgents } from './useAgents';
 import { ClientData, Signer } from '../types';
 
-// Importando o template do local correto (utils)
 // Importando o seletor de templates dinâmico
 import { getTemplate } from '../utils/templates';
 
@@ -45,13 +44,14 @@ export const useCreateDocumentLogic = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [jurisdiction, setJurisdiction] = useState<any>(null);
 
-    // === CORREÇÃO AQUI: Declarando as variáveis da URL ===
+    // === VARIÁVEIS DA URL ===
     const initialAgentTitle = searchParams.get('type') || '';
     const tasksParam = searchParams.get('tasks');
-    const sphereParam = searchParams.get('sphere'); // <--- A linha que faltava
+    const sphereParam = searchParams.get('sphere');
     const availableTasks = tasksParam ? JSON.parse(decodeURIComponent(tasksParam)) : [];
     const { clientId } = useParams<{ clientId?: string }>();
 
+    // === 1. LÓGICA DE JURISDIÇÃO (AUTOMÁTICA) ===
     const fetchJurisdiction = async (city: string, state: string) => {
         if (!city || !state) return;
         setJurisdiction(null);
@@ -59,7 +59,6 @@ export const useCreateDocumentLogic = () => {
             const stateUpper = state.toUpperCase();
             const searchTerms = city.trim().toLowerCase();
 
-            // 1. Busca todos os municípios do estado
             const { data: allMun, error: munError } = await supabase
                 .from('municipalities')
                 .select('id, name')
@@ -67,15 +66,12 @@ export const useCreateDocumentLogic = () => {
 
             if (munError) throw munError;
 
-            // Tenta encontrar o município que está presente na string digitada
-            // Prioriza o nome mais longo em caso de múltiplas correspondências (ex: "Santarem" vs "Santarém Novo")
             const matchedMun = allMun
                 ?.filter(m => searchTerms.includes(m.name.toLowerCase()) || m.name.toLowerCase().includes(searchTerms))
                 .sort((a, b) => b.name.length - a.name.length)[0];
 
             if (!matchedMun) return;
 
-            // 2. Busca detalhes da jurisdição
             const { data, error } = await supabase
                 .from('jurisdiction_map')
                 .select(`
@@ -124,7 +120,7 @@ export const useCreateDocumentLogic = () => {
         return () => clearTimeout(timeout);
     }, [clientData.city, clientData.state]);
 
-    // If a clientId is present in the path, load that client and hydrate the form
+    // === 2. CARREGAMENTO DE CLIENTE EXISTENTE ===
     useEffect(() => {
         const loadClient = async () => {
             if (!clientId) return;
@@ -154,6 +150,7 @@ export const useCreateDocumentLogic = () => {
         loadClient();
     }, [clientId]);
 
+    // === 3. SALVAR CLIENTE NO BANCO ===
     const saveClientToDb = async () => {
         if (!user || !clientData.name) return null;
 
@@ -170,8 +167,6 @@ export const useCreateDocumentLogic = () => {
         };
         const dateFields = ['birth_date', 'child_birth_date', 'der', 'denied_date'];
 
-        // Removido delete payload.children, pois agora é salvo diretamente via JSONB no upsert
-        // Não deletar mais city, state, zip_code e neighborhood, pois agora existem na tabela clients
         delete payload.child_name;
         delete payload.child_cpf;
         delete payload.child_birth_date;
@@ -205,6 +200,7 @@ export const useCreateDocumentLogic = () => {
 
     const [isGenerating, setIsGenerating] = useState(false);
 
+    // === 4. FUNÇÃO DE GERAÇÃO (CORE) ===
     const generate = async (
         agentName: string,
         agentSlug: string,
@@ -227,7 +223,6 @@ export const useCreateDocumentLogic = () => {
             setProgress(35);
             setProgressStatus('Processando no Python (Buscando Jurisprudência e Redigindo)...');
 
-            // Chamada Unificada ao Backend
             const aiResponse = await docGen.generate(
                 agentName,
                 agentSlug,
@@ -240,28 +235,47 @@ export const useCreateDocumentLogic = () => {
             );
 
             if (aiResponse) {
-                // BRECHA FECHADA: Debita o crédito assim que a IA terminou o trabalho, 
-                // idependente se o usuário vai clicar em "Salvar" depois ou não.
                 await incrementUsage();
 
                 setProgress(80);
                 setProgressStatus('Formatando documento final...');
 
+                let finalClientData = { ...clientData };
+
+                // === CORREÇÃO DO ERRO (Null Safety) ===
+                // @ts-ignore
+                if (aiResponse.dados_cadastrais) {
+                    // console.log("🛠️ IA sugeriu correções:", aiResponse.dados_cadastrais);
+
+                    // Filtra apenas os campos que NÃO são nulos e NÃO são vazios
+                    // Isso impede que a gente apague o 'state' ou 'city' do usuário com 'null'
+                    // @ts-ignore
+                    const correcoesValidas = Object.fromEntries(
+                        // @ts-ignore
+                        Object.entries(aiResponse.dados_cadastrais).filter(([_, v]) => v !== null && v !== "")
+                    );
+
+                    finalClientData = {
+                        ...finalClientData,
+                        ...correcoesValidas
+                    };
+
+                    // Atualiza o formulário visualmente
+                    setClientData(finalClientData);
+                }
+
                 const selectedSignersList = signers.filter(s => selectedSignerIds.includes(s.id));
 
                 try {
-                    // Injeta jurisdição se encontrada no hook
                     if (jurisdiction) {
                         aiResponse.jurisdiction = jurisdiction;
                     }
 
-                    // Busca o template dinamicamente com base no nome do agente
                     const dynamicTemplate = getTemplate(agentName);
 
-                    // Renderiza o template com os dados vindos do Python e jurisdição estruturada
                     const finalHtml = dynamicTemplate.render(
                         aiResponse,
-                        clientData,
+                        finalClientData,
                         profile?.office,
                         selectedSignersList
                     );
@@ -339,7 +353,7 @@ export const useCreateDocumentLogic = () => {
         clientData, setClientData, suggestions, showSuggestions, setShowSuggestions, isSearching,
         docType, setDocType, isSaving, setIsSaving,
         initialAgentTitle,
-        sphereParam, // Agora esta variável existe!
+        sphereParam,
         availableTasks,
         generate,
         saveClientToDb,

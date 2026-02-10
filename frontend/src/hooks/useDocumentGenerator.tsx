@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../lib/supabase';
 import { toast } from 'react-toastify';
+import { ClientData } from '../types'; // Importando a tipagem correta
 
 export const useDocumentGenerator = () => {
-  const { user, session } = useAuth();
+  const { session } = useAuth();
   const [generatedContent, setGeneratedContent] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const API_URL = import.meta.env.VITE_API_URL;
@@ -18,7 +18,7 @@ export const useDocumentGenerator = () => {
     details: string,
     provider: string = 'openai',
     systemInstruction: string,
-    clientData: any         // Objeto completo do cliente
+    clientData: ClientData  // Tipagem forte aqui
   ) => {
 
     setIsGenerating(true);
@@ -37,8 +37,7 @@ export const useDocumentGenerator = () => {
         return null;
       }
 
-      // 2. Chamada à API Python      
-      // Certifique-se que seu backend está rodando em localhost:8000
+      // 2. Chamada à API Python
       const response = await fetch(`${API_URL}/api/agents/generate`, {
         method: 'POST',
         headers: {
@@ -51,11 +50,11 @@ export const useDocumentGenerator = () => {
           docType,
           clientName,
           details,
-          systemInstruction,
+          // systemInstruction é ignorado pelo backend (pois ele busca do DB), mas não gera erro enviar
           clientData: {
             ...clientData,
-            name: clientName, // Garante que o nome atualizado vai
-            details: details  // Garante que o relato atualizado vai
+            name: clientName, // Sincroniza nome
+            details: details  // Sincroniza detalhes
           }
         })
       });
@@ -73,9 +72,11 @@ export const useDocumentGenerator = () => {
 
       return result; // Retorna o JSON para o hook pai renderizar o template
 
-    } catch (err) {
+    } catch (err: any) {
       console.error("❌ Erro ao conectar com Python:", err);
-      toast.error('Erro ao gerar. Verifique se o servidor Python está rodando.');
+      // Mensagem de erro mais amigável
+      const msg = err.message || 'Erro desconhecido';
+      toast.error(`Erro ao gerar: ${msg}`);
       setIsGenerating(false);
       return null;
     }

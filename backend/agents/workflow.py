@@ -21,6 +21,7 @@ class AgentState(TypedDict):
     input_text: str
     doc_type: str
     client_data: dict 
+    system_instruction: Optional[str] # Instrução personalizada do banco
     
     # Memória Compartilhada (Pesquisa e Cálculos)
     research_results: str 
@@ -33,7 +34,7 @@ class AgentState(TypedDict):
     revision_count: int
 
 # ⚙️ CONFIGURAÇÃO DO MODELO
-# Correção: Usar gpt-4o resolve o warning de 'json_schema' e é mais barato/rápido
+# GPT-4o é recomendado para Structured Outputs e melhor seguimento de instruções
 llm = ChatOpenAI(model="gpt-4o", temperature=0)
 
 # --- 2. AGENTES (NÓS DO GRAFO) ---
@@ -42,30 +43,26 @@ llm = ChatOpenAI(model="gpt-4o", temperature=0)
 def orchestrator_node(state: AgentState):
     print("🤖 [ORCHESTRATOR] Analisando estado do processo...")
     
-    # CORREÇÃO DE REDUNDÂNCIA:
-    # Verifica se os resultados já existem (vindos do endpoint Python) antes de chamar o agente.
-    # O .strip() evita que strings vazias ou espaços sejam considerados válidos.
-    
+    # 1. Verifica Pesquisa (evita refazer se já veio do Python)
     res = state.get("research_results", "")
     if not res or len(str(res).strip()) < 10:
         return {"next": "researcher"}
     
+    # 2. Verifica Cálculo (evita refazer se já veio do Python)
     calc = state.get("calc_results", "")
     if not calc or len(str(calc).strip()) < 5:
         return {"next": "calculator"}
         
-    # Se não tem rascunho, manda escrever
+    # 3. Se não tem rascunho, manda escrever
     if not state.get("draft"):
         return {"next": "writer"}
         
-    # CORREÇÃO DO LOOP:
-    # Se tem rascunho mas a nota é 0 (ou seja, acabou de ser escrito/reescrito), manda REVISAR.
+    # 4. Se tem rascunho mas a nota é 0 (acabou de ser escrito), manda REVISAR
     score = state.get("quality_score", 0)
     if score == 0:
         return {"next": "reviewer"}
         
-    # LOOP DE QUALIDADE:
-    # Se a nota for baixa (< 8) E ainda tivermos tentativas (ex: limite de 2 revisões)
+    # 5. Loop de Qualidade: Nota baixa (< 8) e poucas tentativas
     rev_count = state.get("revision_count", 0)
     if score < 8 and rev_count < 2:
         print(f"   🔄 Nota baixa ({score}). Solicitando reescrita. Tentativa {rev_count+1}/2")
@@ -90,7 +87,6 @@ async def researcher_node(state: AgentState):
 def calculator_node(state: AgentState):
     print("💰 [CALCULATOR] Processando valores...")
     
-    # Tratamento de erro caso o client_data venha vazio
     c_data = state.get("client_data", {})
     birth_date = c_data.get("child_birth_date") or "2024-01-01"
     
@@ -109,16 +105,32 @@ def writer_node(state: AgentState):
     if feedback:
         print(f"   ⚠️ Aplicando correções do Revisor: {feedback}")
 
-    system_prompt = """Você é um Advogado Previdenciário Sênior.
-    Redija a peça jurídica final preenchendo o schema JSON rigorosamente.
+    # Lógica de Prompt: Usa do banco se existir, senão usa padrão
+    instruction_from_db = state.get("system_instruction")
+    base_prompt = instruction_from_db if (instruction_from_db and len(str(instruction_from_db)) > 10) else \
+        "Você é um Advogado Previdenciário Sênior. Redija a peça jurídica final preenchendo o schema JSON rigorosamente."
+
+    # Instrução de Sanitização (Correção Cadastral)
+    data_correction_instruction = """
+    TAREFA EXTRA - SANITIZAÇÃO DE DADOS:
+    Analise o JSON 'client_data' fornecido no input (campo 'dados_formais'). 
+    Verifique se há erros de digitação, capitalização ou gramática nos nomes, endereços e profissão.
+    Se encontrar erros (ex: "rua das flores" -> "Rua das Flores", "lauradora" -> "Lavradora"),
+    PREENCHA o campo 'dados_cadastrais_corrigidos' apenas com os campos corrigidos.
+    Se estiver tudo correto, deixe esse campo como null.
+    """
+
+    system_prompt = f"""{base_prompt}
     
+    {data_correction_instruction}
+
     1. Use a JURISPRUDÊNCIA fornecida para fundamentar.
     2. Use os CÁLCULOS fornecidos para os pedidos.
     3. Se houver CRÍTICAS da revisão anterior, corrija o texto.
     
-    Contexto Jurídico: {research}
-    Dados Financeiros: {calcs}
-    Críticas Anteriores: {feedback}"""
+    Contexto Jurídico: {{research}}
+    Dados Financeiros: {{calcs}}
+    Críticas Anteriores: {{feedback}}"""
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
@@ -128,6 +140,7 @@ def writer_node(state: AgentState):
     structured_llm = llm.with_structured_output(PeticaoAIOutput)
     chain = prompt | structured_llm
     
+    # --- AQUI ESTAVA O ERRO: A EXECUÇÃO FOI RECUPERADA ---
     result = chain.invoke({
         "research": state.get("research_results"),
         "calcs": state.get("calc_results"),
@@ -136,13 +149,11 @@ def writer_node(state: AgentState):
         "doc_type": state["doc_type"]
     })
     
-    # CORREÇÃO CRÍTICA:
-    # Resetamos quality_score para 0 para OBRIGAR o orchestrator a chamar o Reviewer novamente.
     return {
         "draft": result,
         "revision_count": state.get("revision_count", 0) + 1,
-        "quality_score": 0, 
-        "review_comments": "" # Limpa comentários antigos
+        "quality_score": 0, # Reseta para forçar revisão
+        "review_comments": "" 
     }
 
 # 🕵️ AGENTE 5: REVISOR
@@ -151,23 +162,21 @@ def reviewer_node(state: AgentState):
     
     draft = state["draft"]
     
-    # Prompt de Auditoria
     check_prompt = ChatPromptTemplate.from_messages([
         ("system", """Você é um Juiz Federal rigoroso. Analise o resumo dos fatos e provas.
         Se estiver bom, responda apenas 'APROVADO'.
-        Se estiver ruim ou alucinado, liste os erros resumidamente."""),
+        Se estiver ruim, incompleto ou alucinado, liste os erros resumidamente."""),
         ("human", f"Resumo: {draft.resumo_fatos}\nProvas: {draft.lista_provas}")
     ])
     
     response = llm.invoke(check_prompt.format_messages())
     content = response.content.strip()
     
-    # Lógica de Pontuação Simplificada
     if "APROVADO" in content.upper():
         score = 10
         comments = ""
     else:
-        score = 5 # Nota baixa para forçar reescrita
+        score = 5 
         comments = content
         print(f"   ❌ Crítica encontrada: {comments[:50]}...")
         
@@ -180,21 +189,17 @@ def reviewer_node(state: AgentState):
 
 workflow = StateGraph(AgentState)
 
-# Adiciona todos os nós
 workflow.add_node("orchestrator", orchestrator_node)
 workflow.add_node("researcher", researcher_node)
 workflow.add_node("calculator", calculator_node)
 workflow.add_node("writer", writer_node)
 workflow.add_node("reviewer", reviewer_node)
 
-# Define o Ponto de Entrada
 workflow.set_entry_point("orchestrator")
 
-# Função auxiliar para ler a decisão do orquestrador
 def decide_next(state):
     return state["next"]
 
-# Mapeamento de decisões
 workflow.add_conditional_edges(
     "orchestrator",
     decide_next,
@@ -207,7 +212,7 @@ workflow.add_conditional_edges(
     }
 )
 
-# Todos os agentes voltam para o Orquestrador
+# Arestas de retorno
 workflow.add_edge("researcher", "orchestrator")
 workflow.add_edge("calculator", "orchestrator")
 workflow.add_edge("writer", "orchestrator")
