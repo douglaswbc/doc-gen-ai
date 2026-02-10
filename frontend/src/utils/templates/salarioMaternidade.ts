@@ -145,24 +145,51 @@ export const template: AgentTemplate = {
       const corrections = aiData?.correcoes || [];
 
       const stringFields = [
-        'name', 'nationality', 'marital_status', 'profession', 'address', 'child_name',
-        'cpf', 'rg', 'rg_issuer', 'der', 'nb', 'benefit_status', 'denied_date', 'decision_reason',
-        'activity_before_birth', 'special_insured_period', 'controversial_point', 'previous_benefit',
-        'cnis_period', 'urban_link'
+        // Dados Pessoais
+        'name', 'nationality', 'marital_status', 'profession', 'address', 'neighborhood', 'city', 'state',
+        'cpf', 'rg', 'rg_issuer',
+
+        // Dados dos Filhos (caso fallback)
+        'child_name',
+
+        // Dados do Benefício
+        'der', 'nb', 'benefit_status', 'denied_date', 'decision_reason',
+
+        // Dados Rurais / Técnicos
+        'activity_before_birth', 'special_insured_period', 'controversial_point',
+        'previous_benefit', 'cnis_period', 'urban_link', 'rural_tasks', 'evidence_list',
+
+        // Outros detalhes
+        'case_details', 'specific_details'
       ];
+
+      // Helper para Title Case
+      const toTitle = (s: string) => s ? s.split(/\s+/).filter(Boolean).map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') : '';
 
       // Aplica correções apenas se houver
       stringFields.forEach(f => {
         if (cd[f]) cd[f] = applyCorrectionsToString(cd[f], corrections);
       });
 
-      // Sempre aplica Title Case simples em name e child_name
-      const toTitle = (s: string) => s.split(/\s+/).filter(Boolean).map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+      // Aplica correções na lista de filhos também
+      if (cd.children && Array.isArray(cd.children)) {
+        cd.children.forEach((child: any) => {
+          if (child.name) {
+            child.name = applyCorrectionsToString(child.name, corrections);
+            child.name = toTitle(child.name);
+          }
+          if (child.benefits && Array.isArray(child.benefits)) {
+            child.benefits.forEach((benefit: any) => {
+              if (benefit.benefit_status) benefit.benefit_status = applyCorrectionsToString(benefit.benefit_status, corrections);
+              if (benefit.decision_reason) benefit.decision_reason = applyCorrectionsToString(benefit.decision_reason, corrections);
+            });
+          }
+        });
+      }
+
+      // Sempre aplica Title Case simples em campos de nome
       if (cd.name) cd.name = toTitle(cd.name);
       if (cd.child_name) cd.child_name = toTitle(cd.child_name);
-      if (cd.children && cd.children.length > 0 && cd.children[0].name) {
-        cd.children[0].name = toTitle(cd.children[0].name);
-      }
 
       return cd;
     })();
@@ -360,8 +387,8 @@ export const template: AgentTemplate = {
           <td style="background: #fff; border: 1px solid #000;"><b>CRIANÇA(S)</b></td>
           <td style="border: 1px solid #000;">
             ${(cd.children && cd.children.length > 0)
-        ? cd.children.map((c: any) => `${capitalize(c.name || '...')} (Nasc: ${formatDate(c.birth_date)})`).join('<br>')
-        : capitalize(cd.child_name || '...') + ' (Nasc: ' + formatDate(cd.child_birth_date) + ')'
+        ? cd.children.map((c: any) => `${c.name || '...'} (Nasc: ${formatDate(c.birth_date)})`).join('<br>')
+        : (cd.child_name || '...') + ' (Nasc: ' + formatDate(cd.child_birth_date) + ')'
       }
           </td>
         </tr>
@@ -374,8 +401,8 @@ export const template: AgentTemplate = {
               </td>
               <td style="border: 1px solid #000;">
                 <b>DER:</b> ${formatDate(benefit.der)} | <b>NB:</b> ${benefit.nb}<br>
-                <b>Situação:</b> ${capitalize(benefit.benefit_status)} em ${formatDate(benefit.denied_date)}<br>
-                <b>Motivo:</b> ${benefit.decision_reason || 'Não informado'}
+                <b>Situação:</b> ${benefit.benefit_status ? capitalize(benefit.benefit_status) : '...'} em ${formatDate(benefit.denied_date)}<br>
+                <b>Motivo:</b> ${applyCorrectionsToString(benefit.decision_reason || 'Não informado', aiData?.correcoes || [])}
               </td>
             </tr>
           `).join('')
@@ -383,27 +410,27 @@ export const template: AgentTemplate = {
         
         <tr>
             <td class="bg-gray">Tempo de Trabalho Rural:</td>
-            <td>${aiData.dados_tecnicos?.tempo_atividade || capitalize(cd.activity_before_birth) || 'Mais de 10 meses antes do nascimento'}</td>
+            <td>${applyCorrectionsToString(aiData.dados_tecnicos?.tempo_atividade || cd.activity_before_birth || 'Mais de 10 meses antes do nascimento', aiData?.correcoes || [])}</td>
         </tr>
         <tr>
             <td class="bg-gray">Período Declarado:</td>
-            <td>${aiData.dados_tecnicos?.periodo_rural_declarado || cd.special_insured_period}</td>
+            <td>${applyCorrectionsToString(aiData.dados_tecnicos?.periodo_rural_declarado || cd.special_insured_period || 'Não informado', aiData?.correcoes || [])}</td>
         </tr>
         <tr>
             <td class="bg-gray">Ponto Controvertido:</td>
-            <td>${aiData.dados_tecnicos?.ponto_controvertido || capitalize(cd.controversial_point) || 'Qualidade de segurado/carência'}</td>
+            <td>${applyCorrectionsToString(aiData.dados_tecnicos?.ponto_controvertido || cd.controversial_point || 'Qualidade de segurado/carência', aiData?.correcoes || [])}</td>
         </tr>
         <tr>
             <td class="bg-gray">Benefício Anterior:</td>
-            <td>${aiData.dados_tecnicos?.beneficio_anterior || capitalize(cd.previous_benefit) || 'Não consta'}</td>
+            <td>${applyCorrectionsToString(aiData.dados_tecnicos?.beneficio_anterior || cd.previous_benefit || 'Não consta', aiData?.correcoes || [])}</td>
         </tr>
         <tr>
             <td class="bg-gray">CNIS Averbado:</td>
-            <td>${aiData.dados_tecnicos?.cnis_averbado || capitalize(cd.cnis_period) || 'Não consta'}</td>
+            <td>${applyCorrectionsToString(aiData.dados_tecnicos?.cnis_averbado || cd.cnis_period || 'Não consta', aiData?.correcoes || [])}</td>
         </tr>
         <tr>
             <td class="bg-gray">Vínculo Urbano:</td>
-            <td>${aiData.dados_tecnicos?.vinculo_urbano || capitalize(cd.urban_link) || 'Nunca teve'}</td>
+            <td>${applyCorrectionsToString(aiData.dados_tecnicos?.vinculo_urbano || cd.urban_link || 'Nunca teve', aiData?.correcoes || [])}</td>
         </tr>
         ${aiData.correcoes && aiData.correcoes.length > 0 ? `
         <tr>

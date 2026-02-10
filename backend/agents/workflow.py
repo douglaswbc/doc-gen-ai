@@ -10,59 +10,58 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import SystemMessage, HumanMessage
 
 # Imports do seu projeto existente
-from models.schemas import PeticaoAIOutput
+from models.schemas import PeticaoAIOutput, DadosTecnicos, CorrecaoItem
 from services.search import search_jurisprudence
 from services.calculations import generate_payment_table
 
 load_dotenv()
 
-# --- 1. DEFINIÇÃO DO ESTADO (Memória do Processo) ---
+# --- 1. DEFINIÇÃO DO ESTADO ---
 class AgentState(TypedDict):
     input_text: str
     doc_type: str
     client_data: dict 
-    system_instruction: Optional[str] # Instrução personalizada do banco
+    system_instruction: Optional[str]
     
-    # Memória Compartilhada (Pesquisa e Cálculos)
     research_results: str 
     calc_results: str
     
-    # Controle do Documento
     draft: Optional[PeticaoAIOutput]
     review_comments: str
     quality_score: int
     revision_count: int
 
-# ⚙️ CONFIGURAÇÃO DO MODELO
-# GPT-4o é recomendado para Structured Outputs e melhor seguimento de instruções
+# CONFIGURAÇÃO DO MODELO
 llm = ChatOpenAI(model="gpt-4o", temperature=0)
 
 # --- 2. AGENTES (NÓS DO GRAFO) ---
 
-# 🧠 AGENTE 1: ORQUESTRADOR (O Cérebro)
+# 🧠 ORQUESTRADOR
 def orchestrator_node(state: AgentState):
     print("🤖 [ORCHESTRATOR] Analisando estado do processo...")
     
-    # 1. Verifica Pesquisa (evita refazer se já veio do Python)
     res = state.get("research_results", "")
     if not res or len(str(res).strip()) < 10:
         return {"next": "researcher"}
     
-    # 2. Verifica Cálculo (evita refazer se já veio do Python)
     calc = state.get("calc_results", "")
     if not calc or len(str(calc).strip()) < 5:
         return {"next": "calculator"}
         
-    # 3. Se não tem rascunho, manda escrever
     if not state.get("draft"):
         return {"next": "writer"}
         
-    # 4. Se tem rascunho mas a nota é 0 (acabou de ser escrito), manda REVISAR
     score = state.get("quality_score", 0)
+    
+    # Lógica de fluxo: Writer -> Editor -> Reviewer
+    # Como não temos uma flag explícita de "editado", podemos usar o fluxo do grafo.
+    # Mas para simplificar a decisão aqui:
+    # O grafo abaixo forçará: Writer -> Editor -> Reviewer.
+    # O Orquestrador só decide o loop de repetição.
+    
     if score == 0:
         return {"next": "reviewer"}
         
-    # 5. Loop de Qualidade: Nota baixa (< 8) e poucas tentativas
     rev_count = state.get("revision_count", 0)
     if score < 8 and rev_count < 2:
         print(f"   🔄 Nota baixa ({score}). Solicitando reescrita. Tentativa {rev_count+1}/2")
@@ -71,33 +70,24 @@ def orchestrator_node(state: AgentState):
     print("   ✅ Processo concluído com sucesso.")
     return {"next": "END"}
 
-# 📚 AGENTE 2: PESQUISADOR
+# 📚 PESQUISADOR
 async def researcher_node(state: AgentState):
     print("🔎 [RESEARCHER] Buscando jurisprudência...")
     query = f"{state['doc_type']} {state['input_text'][:50]}"
-    
     results = await search_jurisprudence(query)
     formatted_results = "\n".join([f"- {r['title']}: {r['snippet']}" for r in results])
-    
-    return {
-        "research_results": formatted_results or "Nenhuma jurisprudência encontrada."
-    }
+    return {"research_results": formatted_results or "Nenhuma jurisprudência encontrada."}
 
-# 🧮 AGENTE 3: CALCULISTA
+# 🧮 CALCULISTA
 def calculator_node(state: AgentState):
     print("💰 [CALCULATOR] Processando valores...")
-    
     c_data = state.get("client_data", {})
     birth_date = c_data.get("child_birth_date") or "2024-01-01"
-    
     table, total = generate_payment_table(birth_date)
     summary = f"Valor Total da Causa: R$ {total}. Tabela com {len(table)} competências."
-    
-    return {
-        "calc_results": summary
-    }
+    return {"calc_results": summary}
 
-# ✍️ AGENTE 4: ESCRITOR
+# ✍️ ESCRITOR (JURÍDICO)
 def writer_node(state: AgentState):
     print("✍️ [WRITER] Redigindo a petição...")
     
@@ -105,33 +95,26 @@ def writer_node(state: AgentState):
     if feedback:
         print(f"   ⚠️ Aplicando correções do Revisor: {feedback}")
 
-    # Lógica do prompt (Banco vs Hardcoded) - Mantida da nossa última conversa
     instruction_from_db = state.get("system_instruction")
-    base_prompt = instruction_from_db if (instruction_from_db and len(instruction_from_db) > 10) else \
+    base_prompt = instruction_from_db if (instruction_from_db and len(str(instruction_from_db)) > 10) else \
         "Você é um Advogado Previdenciário Sênior. Redija a peça jurídica final preenchendo o schema JSON rigorosamente."
 
-    # --- NOVO TRECHO DO PROMPT ---
     data_correction_instruction = """
     TAREFA EXTRA - SANITIZAÇÃO DE DADOS:
-    Analise o JSON 'client_data' fornecido no input. Verifique se há erros de digitação, 
-    capitalização ou gramática nos nomes, endereços e profissão.
-    Se encontrar erros (ex: "rua das flores" -> "Rua das Flores", "lauradora" -> "Lavradora"),
-    PREENCHA o campo 'dados_cadastrais_corrigidos' apenas com os campos corrigidos.
-    Se estiver tudo correto, deixe esse campo como null.
+    Analise o JSON 'client_data' fornecido.
+    1. Campos Simples: Corrija 'name', 'address', 'profession' (ex: "lauradora" -> "Lavradora").
+    2. Listas: Corrija nomes em 'children', 'evidence_list'.
+    Preencha 'dados_cadastrais_corrigidos' APENAS com os campos alterados.
     """
 
     system_prompt = f"""{base_prompt}
     
     {data_correction_instruction}
 
-    1. Use a JURISPRUDÊNCIA fornecida para fundamentar.
-    2. Use os CÁLCULOS fornecidos para os pedidos.
-    3. Se houver CRÍTICAS da revisão anterior, corrija o texto.
-    
     Contexto Jurídico: {{research}}
     Dados Financeiros: {{calcs}}
     Críticas Anteriores: {{feedback}}"""
-    
+
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
         ("human", "Caso: {input}\nTipo: {doc_type}")
@@ -140,7 +123,6 @@ def writer_node(state: AgentState):
     structured_llm = llm.with_structured_output(PeticaoAIOutput)
     chain = prompt | structured_llm
     
-    # --- AQUI ESTAVA O ERRO: A EXECUÇÃO FOI RECUPERADA ---
     result = chain.invoke({
         "research": state.get("research_results"),
         "calcs": state.get("calc_results"),
@@ -152,13 +134,47 @@ def writer_node(state: AgentState):
     return {
         "draft": result,
         "revision_count": state.get("revision_count", 0) + 1,
-        "quality_score": 0, # Reseta para forçar revisão
+        "quality_score": 0,
         "review_comments": "" 
     }
 
-# 🕵️ AGENTE 5: REVISOR
+# 📝 AGENTE NOVO: EDITOR (GRAMÁTICA E ESTILO)
+def editor_node(state: AgentState):
+    print("E [EDITOR] Revisando gramática e estilo...")
+    
+    draft = state["draft"]
+    
+    # Prompt focado puramente na língua portuguesa
+    system_prompt = """Você é um Revisor Gramatical implacável de um escritório de advocacia de alto nível.
+    Sua tarefa é polir o texto jurídico gerado, garantindo:
+    1. Concordância nominal e verbal perfeita.
+    2. Uso correto de crase e pontuação.
+    3. Substituição de termos repetitivos por sinônimos elegantes.
+    4. Clareza e coesão textual.
+    
+    NÃO altere os fatos, datas ou valores. Apenas a forma do texto.
+    Retorne o MESMO objeto JSON, mas com os campos de texto ('resumo_fatos') aprimorados.
+    """
+    
+    # Criamos um prompt que recebe o objeto Draft e pede o mesmo objeto de volta, mas melhorado
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        ("human", "Corrija este rascunho: {draft_json}")
+    ])
+    
+    structured_llm = llm.with_structured_output(PeticaoAIOutput)
+    chain = prompt | structured_llm
+    
+    # Passamos o dump do modelo atual para ele reescrever
+    improved_draft = chain.invoke({
+        "draft_json": draft.model_dump_json()
+    })
+    
+    return {"draft": improved_draft}
+
+# 🕵️ REVISOR (JURÍDICO)
 def reviewer_node(state: AgentState):
-    print("⚖️ [REVIEWER] Analisando qualidade...")
+    print("⚖️ [REVIEWER] Analisando qualidade jurídica...")
     
     draft = state["draft"]
     
@@ -193,6 +209,7 @@ workflow.add_node("orchestrator", orchestrator_node)
 workflow.add_node("researcher", researcher_node)
 workflow.add_node("calculator", calculator_node)
 workflow.add_node("writer", writer_node)
+workflow.add_node("editor", editor_node)   # <--- NOVO NÓ
 workflow.add_node("reviewer", reviewer_node)
 
 workflow.set_entry_point("orchestrator")
@@ -207,15 +224,29 @@ workflow.add_conditional_edges(
         "researcher": "researcher",
         "calculator": "calculator",
         "writer": "writer",
-        "reviewer": "reviewer",
+        "reviewer": "reviewer", # Nota: O Orchestrator manda pro Reviewer se score == 0...
         "END": END
     }
 )
 
-# Arestas de retorno
+# FLUXO AJUSTADO:
 workflow.add_edge("researcher", "orchestrator")
 workflow.add_edge("calculator", "orchestrator")
-workflow.add_edge("writer", "orchestrator")
+
+# AQUI ESTÁ A MUDANÇA PRINCIPAL NO FLUXO:
+# Writer -> Editor -> Reviewer -> Orchestrator
+# Quando o Writer termina, ele manda para o Editor.
+# Quando o Editor termina, ele manda para o Reviewer (para ver se a edição não quebrou nada jurídico).
+# O Reviewer manda para o Orchestrator (que decide se aprova ou manda reescrever).
+
+workflow.add_edge("writer", "editor")  # Writer passa para Editor
+workflow.add_edge("editor", "orchestrator") # Editor volta pro Orquestrador?
+# Melhor: Writer -> Editor -> Orchestrator (que vai ver score 0 e mandar pro Reviewer)
+# Mas o Orchestrator vai ver 'score=0' e mandar pro 'reviewer'. 
+# O problema é: O writer reseta o score para 0.
+# Se Writer -> Editor -> Orchestrator -> Reviewer, funciona.
+
+workflow.add_edge("editor", "orchestrator") # Editor devolve pro Orquestrador
 workflow.add_edge("reviewer", "orchestrator")
 
 app_graph = workflow.compile()
