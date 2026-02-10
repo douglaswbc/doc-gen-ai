@@ -2,6 +2,12 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Any
 
 # --- Modelos Internos da IA ---
+
+# 1. Definimos o objeto de correção
+class CorrecaoItem(BaseModel):
+    original: str = Field(description="O trecho de texto original que continha erro")
+    correto: str = Field(description="A versão corrigida do texto")
+
 class DadosTecnicos(BaseModel):
     motivo_indeferimento: str = Field(description="Motivo formal corrigido")
     tempo_atividade: str = Field(description="Tempo de atividade corrigido")
@@ -17,7 +23,8 @@ class PeticaoAIOutput(BaseModel):
     resumo_fatos: str
     dados_tecnicos: DadosTecnicos
     lista_provas: List[str]
-    correcoes: List[dict] = []
+    # Aqui usamos a lista tipada
+    correcoes: List[CorrecaoItem] = Field(default_factory=list, description="Lista de correções")
 
 # --- Modelos da API (Entrada/Saída) ---
 class ClientData(BaseModel):
@@ -37,7 +44,7 @@ class ClientData(BaseModel):
 
 class GenerateRequest(BaseModel):
     agentName: str
-    agentSlug: str # Novo campo para identificação robusta
+    agentSlug: str
     docType: str
     clientName: str
     details: str
@@ -50,7 +57,13 @@ class GenerateResponse(BaseModel):
     inss_address: str
     end_cidade_uf: str = ""
     jurisdiction: Optional[dict] = None
-    correcoes: List[dict] = []
+    
+    # --- CORREÇÃO AQUI ---
+    # Antes estava List[dict]. Mudamos para List[CorrecaoItem].
+    # Isso permite que o Pydantic aceite os objetos vindos da IA
+    # e os converta automaticamente para JSON para o Frontend.
+    correcoes: List[CorrecaoItem] = [] 
+    
     jurisprudencias_selecionadas: List[dict]
     tabela_calculo: List[Any] = []
     valor_causa_extenso: str = "A calcular"
