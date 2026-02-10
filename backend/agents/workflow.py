@@ -105,16 +105,16 @@ def writer_node(state: AgentState):
     if feedback:
         print(f"   ⚠️ Aplicando correções do Revisor: {feedback}")
 
-    # Lógica de Prompt: Usa do banco se existir, senão usa padrão
+    # Lógica do prompt (Banco vs Hardcoded) - Mantida da nossa última conversa
     instruction_from_db = state.get("system_instruction")
-    base_prompt = instruction_from_db if (instruction_from_db and len(str(instruction_from_db)) > 10) else \
+    base_prompt = instruction_from_db if (instruction_from_db and len(instruction_from_db) > 10) else \
         "Você é um Advogado Previdenciário Sênior. Redija a peça jurídica final preenchendo o schema JSON rigorosamente."
 
-    # Instrução de Sanitização (Correção Cadastral)
+    # --- NOVO TRECHO DO PROMPT ---
     data_correction_instruction = """
     TAREFA EXTRA - SANITIZAÇÃO DE DADOS:
-    Analise o JSON 'client_data' fornecido no input (campo 'dados_formais'). 
-    Verifique se há erros de digitação, capitalização ou gramática nos nomes, endereços e profissão.
+    Analise o JSON 'client_data' fornecido no input. Verifique se há erros de digitação, 
+    capitalização ou gramática nos nomes, endereços e profissão.
     Se encontrar erros (ex: "rua das flores" -> "Rua das Flores", "lauradora" -> "Lavradora"),
     PREENCHA o campo 'dados_cadastrais_corrigidos' apenas com os campos corrigidos.
     Se estiver tudo correto, deixe esse campo como null.
@@ -131,7 +131,7 @@ def writer_node(state: AgentState):
     Contexto Jurídico: {{research}}
     Dados Financeiros: {{calcs}}
     Críticas Anteriores: {{feedback}}"""
-
+    
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
         ("human", "Caso: {input}\nTipo: {doc_type}")

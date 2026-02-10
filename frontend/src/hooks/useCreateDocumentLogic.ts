@@ -10,6 +10,33 @@ import { ClientData, Signer } from '../types';
 // Importando o seletor de templates dinâmico
 import { getTemplate } from '../utils/templates';
 
+// === FUNÇÃO AUXILIAR: SMART MERGE DE FILHOS ===
+// Mescla a correção da IA (geralmente só o nome) com os dados originais (datas, cpf)
+// para evitar perda de dados quando a IA corrige apenas a grafia.
+const smartMergeChildren = (originalChildren: any[], correctedChildren: any[]) => {
+    // Se a IA não mandou lista ou mandou tamanho diferente, aborta para segurança
+    if (!correctedChildren || !Array.isArray(correctedChildren)) return originalChildren;
+
+    // Se a quantidade for diferente, pode ser arriscado mesclar por índice.
+    // Nesse caso, mantemos o original para evitar dados cruzados.
+    if (correctedChildren.length !== originalChildren.length) {
+        console.warn("IA retornou quantidade diferente de filhos. Ignorando correção de lista para evitar perda de dados.");
+        return originalChildren;
+    }
+
+    return originalChildren.map((child, index) => {
+        const corrected = correctedChildren[index];
+        // Mescla: Mantém o original (...child) e sobrescreve com o novo (...corrected)
+        // Isso garante que campos que a IA mandou 'null' não apaguem os dados originais se filtrados,
+        // mas aqui assumimos que o objeto 'corrected' tem as chaves certas.
+        // Uma abordagem mais segura é filtrar nulos aqui também:
+        const cleanCorrected = Object.fromEntries(
+            Object.entries(corrected).filter(([_, v]) => v !== null && v !== "")
+        );
+        return { ...child, ...cleanCorrected };
+    });
+};
+
 export const useCreateDocumentLogic = () => {
     const { user } = useAuth();
     const [searchParams] = useSearchParams();
@@ -59,6 +86,7 @@ export const useCreateDocumentLogic = () => {
             const stateUpper = state.toUpperCase();
             const searchTerms = city.trim().toLowerCase();
 
+            // 1. Busca todos os municípios do estado
             const { data: allMun, error: munError } = await supabase
                 .from('municipalities')
                 .select('id, name')
@@ -66,12 +94,14 @@ export const useCreateDocumentLogic = () => {
 
             if (munError) throw munError;
 
+            // Filtra o município com match aproximado
             const matchedMun = allMun
                 ?.filter(m => searchTerms.includes(m.name.toLowerCase()) || m.name.toLowerCase().includes(searchTerms))
                 .sort((a, b) => b.name.length - a.name.length)[0];
 
             if (!matchedMun) return;
 
+            // 2. Busca detalhes no mapa de jurisdição
             const { data, error } = await supabase
                 .from('jurisdiction_map')
                 .select(`
@@ -113,6 +143,7 @@ export const useCreateDocumentLogic = () => {
         }
     };
 
+    // Debounce para evitar muitas chamadas ao digitar
     useEffect(() => {
         const timeout = setTimeout(() => {
             fetchJurisdiction(clientData.city || '', clientData.state || '');
@@ -240,42 +271,56 @@ export const useCreateDocumentLogic = () => {
                 setProgress(80);
                 setProgressStatus('Formatando documento final...');
 
+                // === MERGE INTELIGENTE DE DADOS (SANITIZAÇÃO) ===
                 let finalClientData = { ...clientData };
 
-                // === CORREÇÃO DO ERRO (Null Safety) ===
                 // @ts-ignore
                 if (aiResponse.dados_cadastrais) {
-                    // console.log("🛠️ IA sugeriu correções:", aiResponse.dados_cadastrais);
+                    // @ts-ignore
+                    const correcoes = aiResponse.dados_cadastrais;
 
-                    // Filtra apenas os campos que NÃO são nulos e NÃO são vazios
-                    // Isso impede que a gente apague o 'state' ou 'city' do usuário com 'null'
+                    // 1. Separa campos complexos (children) dos simples
+                    // @ts-ignore
+                    const { children: correctedChildren, ...simpleFields } = correcoes;
+
+                    // 2. Filtra campos simples para remover NULOS e VAZIOS
+                    // ISSO EVITA O ERRO 'cannot read property toUpperCase of null'
                     // @ts-ignore
                     const correcoesValidas = Object.fromEntries(
                         // @ts-ignore
-                        Object.entries(aiResponse.dados_cadastrais).filter(([_, v]) => v !== null && v !== "")
+                        Object.entries(simpleFields).filter(([_, v]) => v !== null && v !== "")
                     );
 
+                    // 3. Aplica correções simples (sobrescreve o original com a correção válida)
                     finalClientData = {
                         ...finalClientData,
                         ...correcoesValidas
                     };
 
-                    // Atualiza o formulário visualmente
+                    // 4. SMART MERGE para Filhos (Children)
+                    // @ts-ignore
+                    if (correctedChildren && Array.isArray(correctedChildren) && finalClientData.children) {
+                        finalClientData.children = smartMergeChildren(finalClientData.children, correctedChildren);
+                    }
+
+                    // Atualiza o formulário visualmente com os dados corrigidos
                     setClientData(finalClientData);
                 }
 
                 const selectedSignersList = signers.filter(s => selectedSignerIds.includes(s.id));
 
                 try {
+                    // Injeta a jurisdição encontrada
                     if (jurisdiction) {
                         aiResponse.jurisdiction = jurisdiction;
                     }
 
+                    // Renderiza o template
                     const dynamicTemplate = getTemplate(agentName);
 
                     const finalHtml = dynamicTemplate.render(
                         aiResponse,
-                        finalClientData,
+                        finalClientData, // Usa os dados já corrigidos pela IA
                         profile?.office,
                         selectedSignersList
                     );
