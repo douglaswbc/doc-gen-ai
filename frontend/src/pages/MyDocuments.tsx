@@ -512,9 +512,9 @@ const MyDocuments: React.FC = () => {
             <div className="flex-1 overflow-y-auto custom-scrollbar bg-gray-50 dark:bg-[#111318] p-6">
               <div
                 ref={editorRef}
-                className={`prose prose-sm sm:prose-base dark:prose-invert max-w-none bg-white dark:bg-[#1C2431] p-8 rounded-lg shadow-sm border transition-all font-sans ${isEditing
+                className={`prose prose-sm sm:prose-base max-w-none bg-white p-8 rounded-lg shadow-sm border transition-all font-sans text-gray-900 ${isEditing
                   ? 'border-primary ring-2 ring-primary/20 cursor-text'
-                  : 'border-gray-100 dark:border-gray-800'
+                  : 'border-gray-100'
                   }`}
                 contentEditable={isEditing}
                 suppressContentEditableWarning={true}
@@ -523,11 +523,8 @@ const MyDocuments: React.FC = () => {
               />
               <style>{`
                   table { width: 100%; border-collapse: collapse; margin: 20px 0; border: 1px solid #ccc; font-size: 0.9em; }
-                  th, td { border: 1px solid #ccc; padding: 10px; text-align: left; }
+                  th, td { border: 1px solid #ccc; padding: 10px; text-align: left; color: #111; }
                   th { background-color: #f3f4f6; font-weight: bold; }
-                  .dark th { background-color: #2a303c; border-color: #374151; color: white; }
-                  .dark td { border-color: #374151; color: #d1d5db; }
-                  .dark table { border-color: #374151; }
                   [contenteditable]:focus { outline: none; }
               `}</style>
             </div>

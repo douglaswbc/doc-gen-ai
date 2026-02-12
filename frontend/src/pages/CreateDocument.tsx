@@ -780,7 +780,7 @@ const CreateDocument: React.FC = () => {
                         <h3 className="text-primary font-bold flex items-center gap-2 mb-4 mt-6"><span className="material-symbols-outlined">description</span> Contexto e Detalhes</h3>
                         <div className="space-y-4">
                           <div><label className={labelClass}>Contexto Fático</label><textarea rows={5} value={clientData.case_details} onChange={e => setClientData({ ...clientData, case_details: e.target.value })} className={inputClass} placeholder="História completa..." /></div>
-                          <div><label className={labelClass}>Detalhes (informe se haverá pedido liminar, preliminares, alguma tese especifica, etc)</label><textarea rows={3} value={clientData.specific_details} onChange={e => setClientData({ ...clientData, specific_details: e.target.value })} className={inputClass} placeholder="Pedido de tutela, etc." /></div>
+                          <div><label className={labelClass}>Detalhes (informe se haverá pedido liminar, alguma tese especifica, etc)</label><textarea rows={3} value={clientData.specific_details} onChange={e => setClientData({ ...clientData, specific_details: e.target.value })} className={inputClass} placeholder="Pedido de tutela, etc." /></div>
                         </div>
                       </div>
                     </div>
@@ -855,6 +855,17 @@ const CreateDocument: React.FC = () => {
                     </h3>
                     <div className="flex gap-3">
                       <button
+                        onClick={async () => {
+                          const saved = await saveClientToDb();
+                          if (saved) toast.success('Rascunho salvo com sucesso!');
+                          else toast.error('Erro ao salvar rascunho.');
+                        }}
+                        className="py-2 px-4 rounded-lg border border-primary text-primary font-bold hover:bg-primary/10 transition-all text-sm flex items-center gap-2"
+                      >
+                        <span className="material-symbols-outlined text-sm">save</span>
+                        Salvar Rascunho
+                      </button>
+                      <button
                         onClick={() => setIsReviewMode(false)}
                         className="py-2 px-4 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-sm flex items-center gap-2"
                       >
@@ -875,10 +886,10 @@ const CreateDocument: React.FC = () => {
 
                   <div className="flex-1 overflow-y-auto border border-slate-100 dark:border-slate-800 p-8 sm:p-12 bg-slate-50 dark:bg-slate-900/50 rounded-lg custom-scrollbar">
                     <div className="mt-2 text-center text-[10px] text-slate-400 italic mb-4">
-                      Documento editável para ajustes rápidos.
+                      Este é um rascunho visual. Edições aqui não alteram os dados do formulário.
                     </div>
                     <div
-                      className="prose prose-slate max-w-none dark:prose-invert font-serif bg-white dark:bg-slate-900 p-8 sm:p-16 shadow-xl rounded-sm mx-auto outline-none border-2 border-transparent focus:border-primary/20 transition-all"
+                      className="prose prose-slate max-w-none font-serif bg-white text-black p-8 sm:p-16 shadow-xl rounded-sm mx-auto outline-none border-2 border-transparent focus:border-primary/20 transition-all"
                       style={{ maxWidth: '800px' }}
                       contentEditable
                       suppressContentEditableWarning
@@ -992,21 +1003,27 @@ const CreateDocument: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex-1 p-12 overflow-y-auto custom-scrollbar bg-white text-slate-900">
-              <div className="mb-4 flex items-center gap-2 text-xs text-slate-400 border-b border-slate-100 pb-2">
-                <span className="material-symbols-outlined text-sm">edit_note</span>
-                Modo Edição Ativado: Clique no texto para realizar ajustes manuais finais.
+            <div className="flex-1 p-12 overflow-y-auto custom-scrollbar bg-gray-50 dark:bg-[#111318]">
+              <div className="max-w-4xl mx-auto">
+                <div className="mb-4 flex items-center gap-2 text-xs text-slate-400 border-b border-slate-100 dark:border-slate-800 pb-2">
+                  <span className="material-symbols-outlined text-sm">edit_note</span>
+                  Modo Edição Ativado: Clique no texto para realizar ajustes manuais finais.
+                </div>
+                <article
+                  className="prose prose-lg max-w-none font-sans prose-p:text-justify prose-p:leading-relaxed bg-white text-black p-8 sm:p-16 shadow-xl rounded-sm outline-none border-2 border-transparent focus:border-primary/10 transition-all"
+                  contentEditable
+                  suppressContentEditableWarning
+                  onBlur={(e) => setGeneratedContent(e.currentTarget.innerHTML)}
+                  dangerouslySetInnerHTML={{ __html: generatedContent }}
+                />
+                <style>{`
+                  td:first-child { background-color: #f8f9fa; font-weight: bold; width: 30%; }
+                  table { width: 100%; border-collapse: collapse; margin: 20px 0; border: 1px solid #ccc; font-size: 0.9em; }
+                  th, td { border: 1px solid #ccc; padding: 10px; text-align: left; color: #111; }
+                  th { background-color: #f3f4f6; font-weight: bold; }
+                  [contenteditable]:focus { outline: none; }
+                `}</style>
               </div>
-              <article
-                className="prose prose-lg max-w-none font-sans prose-p:text-justify prose-p:leading-relaxed outline-none border-2 border-transparent focus:border-primary/10 p-4 rounded-lg transition-all"
-                contentEditable
-                suppressContentEditableWarning
-                onBlur={(e) => setGeneratedContent(e.currentTarget.innerHTML)}
-                dangerouslySetInnerHTML={{ __html: generatedContent }}
-              />
-              <style>{`
-                td:first-child { background-color: #f8f9fa; font-weight: bold; width: 30%; }
-              `}</style>
             </div>
           </div>
         )}

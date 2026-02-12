@@ -68,9 +68,10 @@ class GenerateRequest(BaseModel):
 
 class GenerateResponse(BaseModel):
     resumo_fatos: str
+    preliminares: Optional[str] = None
     dados_tecnicos: dict
     lista_provas: List[str]
-    inss_address: str
+    inss_address: Optional[str] = None
     end_cidade_uf: str = ""
     jurisdiction: Optional[dict] = None
     correcoes: List[CorrecaoItem] = [] 

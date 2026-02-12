@@ -126,16 +126,74 @@ export const template: AgentTemplate = {
 
     // --- Helpers para aplicar correções vindas da IA ---
     const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const applyCorrectionsToString = (text: string, corrections: any[]) => {
-      if (!text || !corrections || corrections.length === 0) return text;
+
+    // Helper para correções gramaticais automáticas (acentuação e termos comuns)
+    const applyGrammarFixes = (text: string) => {
+      if (!text) return text;
       let out = String(text);
-      corrections.forEach((c: any) => {
-        const orig = c.original || c.erro || c.text;
-        const corr = c.correto || c.corrected || c.correct || '';
-        if (!orig || !corr) return;
-        const re = new RegExp('\\b' + escapeRegExp(orig) + '\\b', 'gi');
-        out = out.replace(re, corr);
+      const fixes: Record<string, string> = {
+        'carencia': 'carência',
+        'beneficio': 'benefício',
+        'periodo': 'período',
+        'salario': 'salário',
+        'auxilio': 'auxílio',
+        'previdenciario': 'previdenciário',
+        'indefirido': 'indeferido',
+        'indefereimento': 'indeferimento',
+        'concessao': 'concessão',
+        'revisao': 'revisão',
+        'pensao': 'pensão',
+        'averbacao': 'averbação',
+        'rural': 'rural', // apenas para manter padrão, se necessário
+        'nao': 'não',
+        'estao': 'estão',
+        'sao': 'são',
+        'entao': 'então',
+        'tambem': 'também',
+        'voce': 'você',
+        'aposentadoria': 'aposentadoria',
+        'obito': 'óbito',
+        'uniao': 'união',
+        'estavel': 'estável',
+        'familia': 'família',
+        'avo': 'avô', // contexto pode variar, mas avo geralmente é erro para avô/avó
+        'mae': 'mãe',
+        'irnao': 'irmão',
+        'irmao': 'irmão',
+        'orfao': 'órfão'
+      };
+
+      // Aplica substituições case-insensitive para palavras inteiras
+      Object.entries(fixes).forEach(([error, correct]) => {
+        const re = new RegExp('\\b' + escapeRegExp(error) + '\\b', 'gi');
+        out = out.replace(re, (match) => {
+          // Tenta manter o case original (Maiúscula/Minúscula)
+          if (match === match.toUpperCase()) return correct.toUpperCase();
+          if (match[0] === match[0].toUpperCase()) return correct.charAt(0).toUpperCase() + correct.slice(1);
+          return correct;
+        });
       });
+      return out;
+    };
+
+    const applyCorrectionsToString = (text: string, corrections: any[]) => {
+      if (!text) return text;
+      let out = String(text);
+
+      // 1. Aplica correções específicas da IA/Usuário
+      if (corrections && corrections.length > 0) {
+        corrections.forEach((c: any) => {
+          const orig = c.original || c.erro || c.text;
+          const corr = c.correto || c.corrected || c.correct || '';
+          if (!orig || !corr) return;
+          const re = new RegExp('\\b' + escapeRegExp(orig) + '\\b', 'gi');
+          out = out.replace(re, corr);
+        });
+      }
+
+      // 2. Aplica correções gramaticais automáticas
+      out = applyGrammarFixes(out);
+
       return out;
     };
 
@@ -370,7 +428,7 @@ export const template: AgentTemplate = {
       <p>
         Em face do <b>INSTITUTO NACIONAL DO SEGURO SOCIAL – INSS</b>, autarquia federal, CNPJ 16.727.230/0001 97, 
         com endereço eletrônico conhecido por este juízo, podendo também ser citada em sua sede à 
-        <b>${aiData.inss_address || 'Endereço não localizado'}</b> pelos motivos fáticos e jurídicos a seguir expendidos:
+        <b>${aiData.inss_address || 'Rua João XXIII, nº 100, Centro, Santarém - PA'}</b> pelos motivos fáticos e jurídicos a seguir expendidos:
       </p>
 
       <h3>I. PRELIMINARMENTE</h3>
@@ -450,7 +508,7 @@ export const template: AgentTemplate = {
         : `<li>Certidão de nascimento da criança ${cd.child_name || '...'} constando a zona rural como local de nascimento;</li>`
       }
         <li>Certidão eleitoral constando a comunidade rural como local de votação;</li>
-        ${aiData.lista_provas?.map((p: string) => `<li>${p}</li>`).join('') || '<li>Outros documentos em anexo.</li>'}
+        ${aiData.lista_provas?.filter((p: string) => !p.toLowerCase().includes('nascimento') && !p.toLowerCase().includes('eleitoral')).map((p: string) => `<li>${p}</li>`).join('') || '<li>Outros documentos em anexo.</li>'}
       </ol>
       <p>
         O contexto probatório carreado, não deixa dúvida que a parte Autora é segurada especial, possui início de prova material, 

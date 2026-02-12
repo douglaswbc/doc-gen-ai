@@ -30,6 +30,7 @@ class AgentState(TypedDict):
     review_comments: str
     quality_score: int
     revision_count: int
+    legal_strategy: Optional[str]
 
 # CONFIGURAÇÃO DO MODELO
 llm = ChatOpenAI(model="gpt-4o", temperature=0)
@@ -43,6 +44,10 @@ def orchestrator_node(state: AgentState):
     res = state.get("research_results", "")
     if not res or len(str(res).strip()) < 10:
         return {"next": "researcher"}
+    
+    # Se não tiver estratégia definida, passa pelo Strategist
+    if not state.get("legal_strategy"):
+        return {"next": "strategist"}
     
     calc = state.get("calc_results", "")
     if not calc or len(str(calc).strip()) < 5:
@@ -78,6 +83,51 @@ async def researcher_node(state: AgentState):
     formatted_results = "\n".join([f"- {r['title']}: {r['snippet']}" for r in results])
     return {"research_results": formatted_results or "Nenhuma jurisprudência encontrada."}
 
+# ♟️ ESTRATEGISTA (NOVO)
+def strategist_node(state: AgentState):
+    print("♟️ [STRATEGIST] Definindo estratégia processual...")
+    
+    input_text = state.get("input_text", "").lower()
+    client_data = state.get("client_data", {})
+    specific_details = str(client_data.get("specific_details", "")).lower()
+    
+    # Combine input text and specific details for broader keyword search
+    full_text_analysis = f"{input_text} {specific_details}"
+    
+    strategy_points = []
+    
+    # 1. Gratuidade de Justiça (Padrão para segurado especial)
+    strategy_points.append("PEDIR GRATUIDADE DE JUSTIÇA: Cliente hipossuficiente. Art. 98 CPC.")
+    
+    # 2. Coisa Julgada (Antigo processo sem resolução de mérito)
+    # Palavras-chave: processo anterior, ajuizou, extinto, sem resolução, falta de procuração
+    keywords_cj = ["processo anterior", "ajuizou", "extinto", "sem resolução", "falta de procuração", "indefereimento", "já entrou", "acao idêntica", "acao identica", "coisa julgada"]
+    
+    prev_benefit = str(client_data.get("previous_benefit", "")).lower()
+    has_prev_indication = prev_benefit and len(prev_benefit) > 3 and "não consta" not in prev_benefit and "nada consta" not in prev_benefit
+    
+    if any(k in full_text_analysis for k in keywords_cj) or has_prev_indication:
+        strategy_points.append(
+            "PRELIMINAR DE NÃO INCIDÊNCIA DE COISA JULGADA: "
+            "Identificado indício de processo anterior (administrativo ou judicial) extinto ou indeferido. "
+            "Argumentar que a extinção anterior foi SEM resolução de mérito (apenas formalmente, ex: falta de procuração ou carência). "
+            "Citar CPC Art. 486. A parte tem direito a propor nova ação corrigida."
+        )
+
+    # 3. Pedidos Liminares / Tutela
+    if "liminar" in full_text_analysis or "tutela" in full_text_analysis or "urgência" in full_text_analysis:
+        strategy_points.append("PEDIR TUTELA DE URGÊNCIA: Demonstrar perigo de dano e probabilidade do direito.")
+        
+    # 3. Prioridade de Tramitação
+    # Verifica idade ou deficiência nos dados ou input
+    if "idoso" in full_text_analysis or client_data.get("age", 0) > 60:
+         strategy_points.append("PEDIR PRIORIDADE DE TRAMITAÇÃO (IDOSO). Estatuto do Idoso.")
+         
+    strategy_text = "\n".join(strategy_points)
+    print(f"   🎯 Estratégia definida: {strategy_text}")
+    
+    return {"legal_strategy": strategy_text}
+
 # 🧮 CALCULISTA
 def calculator_node(state: AgentState):
     print("💰 [CALCULATOR] Processando valores...")
@@ -111,9 +161,28 @@ def writer_node(state: AgentState):
     
     {data_correction_instruction}
 
+    
+    {data_correction_instruction}
+
     Contexto Jurídico: {{research}}
+    Estratégia Processual: {{strategy}}
     Dados Financeiros: {{calcs}}
-    Críticas Anteriores: {{feedback}}"""
+    Críticas Anteriores: {{feedback}}
+    
+    **INSTRUÇÃO ESPECIAL PARA PRELIMINARES (CRÍTICO)**:
+    Use a 'Estratégia Processual' acima para preencher o campo 'preliminares'.
+    O campo 'preliminares' NÃO pode ser vazio.
+    FORMATO OBRIGATÓRIO (HTML):
+    Use `<h3>I.1 – TÍTULO DA PRELIMINAR</h3>` para cada tópico.
+    Exemplo:
+    `<h3>I.1 – DA GRATUIDADE DA JUSTIÇA</h3><p>Texto...</p>`
+    `<h3>I.2 – DA NÃO INCIDÊNCIA DE COISA JULGADA</h3><p>Texto...</p>`
+
+    **INSTRUÇÃO SOBRE PROVAS (DEDUPLICAÇÃO)**:
+    No campo `lista_provas`, NÃO inclua "Certidão de Nascimento" ou "Título de Eleitor/Certidão Eleitoral".
+    Esses documentos já são inseridos automaticamente pelo sistema.
+    Liste apenas OUTRAS provas citadas no contexto ou inferidas (ex: Carteira de Sindicato, Notas Fiscais, Ficha de Atendimento, Comprovante de Residência, etc).
+    """
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
@@ -125,6 +194,8 @@ def writer_node(state: AgentState):
     
     result = chain.invoke({
         "research": state.get("research_results"),
+        "strategy": state.get("legal_strategy"),
+        "calcs": state.get("calc_results"),
         "calcs": state.get("calc_results"),
         "feedback": feedback,
         "input": state["input_text"],
@@ -207,6 +278,7 @@ workflow = StateGraph(AgentState)
 
 workflow.add_node("orchestrator", orchestrator_node)
 workflow.add_node("researcher", researcher_node)
+workflow.add_node("strategist", strategist_node) # <--- NOVO NÓ
 workflow.add_node("calculator", calculator_node)
 workflow.add_node("writer", writer_node)
 workflow.add_node("editor", editor_node)   # <--- NOVO NÓ
@@ -222,6 +294,7 @@ workflow.add_conditional_edges(
     decide_next,
     {
         "researcher": "researcher",
+        "strategist": "strategist",
         "calculator": "calculator",
         "writer": "writer",
         "reviewer": "reviewer", # Nota: O Orchestrator manda pro Reviewer se score == 0...
@@ -231,6 +304,7 @@ workflow.add_conditional_edges(
 
 # FLUXO AJUSTADO:
 workflow.add_edge("researcher", "orchestrator")
+workflow.add_edge("strategist", "orchestrator")
 workflow.add_edge("calculator", "orchestrator")
 
 # AQUI ESTÁ A MUDANÇA PRINCIPAL NO FLUXO:

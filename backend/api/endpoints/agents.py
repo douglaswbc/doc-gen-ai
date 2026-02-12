@@ -62,7 +62,7 @@ async def generate_document(
         raw_jurisprudencias, juris_data = await asyncio.gather(juris_task, subsection_task)
         
         # DEFINIÇÃO DO INSS ADDRESS (Obrigatório para o GenerateResponse)
-        inss_address = "Consultar Órgão Previdenciário Local"
+        inss_address = None # Deixa o frontend usar o fallback se necessário
 
         # Formata jurisprudência
         juris_text = "\n".join([f"- {j['title']}: {j['snippet']}" for j in raw_jurisprudencias])
