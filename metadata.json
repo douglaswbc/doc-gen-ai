@@ -1,0 +1,5 @@
+{
+  "name": "DocGen IA",
+  "description": "An intelligent document generation platform powered by Gemini. Create legal, marketing, and corporate documents in seconds.",
+  "requestFramePermissions": []
+}
