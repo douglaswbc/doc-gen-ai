@@ -428,10 +428,16 @@ export const template: AgentTemplate = {
       <p>
         Em face do <b>INSTITUTO NACIONAL DO SEGURO SOCIAL – INSS</b>, autarquia federal, CNPJ 16.727.230/0001 97, 
         com endereço eletrônico conhecido por este juízo, podendo também ser citada em sua sede à 
+<<<<<<< HEAD
         <b>Brasília-DF, no Setor de Autarquias Sul, Quadra 2, Bloco O, CEP 70070-946</b> pelos motivos fáticos e jurídicos a seguir expendidos:
       </p>
 
 
+=======
+        <b>${aiData.inss_address || 'Rua João XXIII, nº 100, Centro, Santarém - PA'}</b> pelos motivos fáticos e jurídicos a seguir expendidos:
+      </p>
+
+>>>>>>> 57ddab191a6af2f6378f5d6a499e56148a319f9e
       <h3>I. PRELIMINARMENTE</h3>
       ${aiData.preliminares || '<p>Requer a parte Autora os benefícios da gratuidade da justiça, com fulcro no art. 5º, Inciso LXXIV da CF/88 e nos termos da Lei 1.060/50, haja vista declarar-se pobre na forma da lei, não podendo custear a máquina jurisdicional sem prejuízo de seu sustento e o da sua família.</p>'}
 
